@@ -10,10 +10,15 @@ these exact bytes are already on this machine 1 time(s).
 fetching this would cost nothing but a copy.
 ```
 
-This is the AI-specific layer. Below it, [`download`](../download/README.md) moves
+This is the AI-specific layer. Below it,
+[`download`](https://github.com/openabstractions/abstraction-download) moves
 bytes and refuses anything whose digest is wrong; below that,
-[`job`](../job/README.md) makes the work outlive the process that asked for it.
+[`job`](https://github.com/openabstractions/abstraction-job) makes the work
+outlive the process that asked for it.
 This layer knows the few things that are specific to model weights.
+
+Whether to adopt this at all, what it costs and what is not proven:
+[Adopting](CONTRIBUTING.md#adopting).
 
 ## Is that the same model as this one?
 
@@ -53,7 +58,8 @@ machine this was written against contains zero byte-identical duplicates.
 The 42 identifiers in [`testdata/identifiers.tsv`](testdata/identifiers.tsv)
 were read from the four running services, and Go and Python are held to them
 byte-for-byte by `scripts/identity-conformance.sh`. Python is in
-[`python/`](python/) because the consumers are a broker and a ComfyUI node.
+[`python/`](python/README.md) because the consumers are a broker and a ComfyUI
+node: what to install, what to import and one example that runs are on that page.
 
 ## One copy, two applications
 
@@ -69,11 +75,12 @@ already holding that family or picks a host that has the weights on disk and
 loads it there. Placement is serialised per family, so two applications arriving
 together wait on one load instead of starting two.
 
-Measured on the owner's laptop: two applications wanting one 35B model cost
-**44.11 GB in two copies and 25.77 GB in one**, and both answered faster
-(61.6 s → 48.6 s). Warm, the second application added **zero bytes**. Full
-numbers, and what the hardware permits, in
-[`research/residency-strix-halo/MEASURED.txt`](../research/residency-strix-halo/MEASURED.txt).
+Measured once on one consumer laptop: two applications wanting one 35B model
+cost close to twice the memory in two copies as in one, both answered faster,
+and warm, the second application added **zero bytes**. **That transcript is not
+published**, so treat those as a claim rather than evidence. What is published,
+each with the script that produced it and the state of the machine that ran it,
+is [`docs/results/`](https://github.com/openabstractions/abstractions/tree/main/docs/results).
 
 The window at `/` names what is resident, who holds the GPU, and every routing
 decision. `GET /findings` emits the same document in `polite-monitor`'s shape.
@@ -88,7 +95,8 @@ LM Studio `/api/v1/models/unload`). A host that will not unload keeps its copy
 and loses its traffic: the lease lapses, the copy is evicted from routing, and
 the host's own idle timeout finishes the job. The same recall is open to anyone
 holding the store — `jobctl recall <id> --epoch N --reason "make room"` unloads a
-model within one poll. Contract in [`job/README.md`](../job/README.md).
+model within one poll. Contract in
+[`abstraction-job`](https://github.com/openabstractions/abstraction-job).
 
 When it is wrong in the direction of splitting, `~\.abstraction\model-merges`
 overrides it without a code change — one `wrong-key canonical-key` per line,
@@ -120,7 +128,8 @@ stores, only Ollama names a file by its content. The HuggingFace cache on the
 machine measured has no `blobs/` directory at all — whatever wrote it put the
 files straight into the snapshot — so the "a stat, not a scan" claim below holds
 for Ollama and for a cache `huggingface_hub` wrote, and for nothing else here.
-Numbers in [`research/model-identity/MEASURED.txt`](../research/model-identity/MEASURED.txt).
+**That survey's transcript is not published**, so it is a claim about four stores
+on one machine, not evidence you can check.
 
 **Known limit.** A speculative-decoding draft head shipped as its own file
 (`mtp-gemma-4-26B-A4B-it.gguf`) lands in its parent's family, because `mtp` has
@@ -203,7 +212,8 @@ or the machine sleeps. Check on it with: modelget list
 ```
 
 Nothing in that command mentions a NAS. Unset the variable and it uses BITS; the
-command does not change. See [`deploy/nas`](../deploy/nas/README.md).
+command does not change. The NAS side is
+[`addon-synology`](https://github.com/openabstractions/addon-synology).
 
 ## The complaint this answers, tested
 
@@ -218,7 +228,8 @@ no graceful shutdown, which is what closing a lid looks like to a process. A
 separate invocation finds the job, resumes from the byte the dead one had
 *proven*, and delivers a file whose sha256 matches what HuggingFace published.
 
-Transcript: [`docs/results/RESUME1.txt`](../docs/results/RESUME1.txt).
+Transcript:
+[`docs/results/RESUME1.txt`](https://github.com/openabstractions/abstractions/blob/main/docs/results/RESUME1.txt).
 
 ```
 bytes on disk:   61163581
