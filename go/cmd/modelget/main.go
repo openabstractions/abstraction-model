@@ -298,7 +298,7 @@ func watch(ctx context.Context, store job.Store, id string) error {
 				// the store has given up on. Failure is this layer's own
 				// vehicle for a class crossing a boundary errors.Is cannot.
 				return (&download.Failure{
-					Text:      fmt.Sprintf("%s: %s", rec.State, rec.Error),
+					Error:     fmt.Sprintf("%s: %s", rec.State, rec.Error),
 					Permanent: true,
 				}).Err()
 			}
