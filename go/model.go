@@ -22,6 +22,7 @@ package model
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/openabstractions/abstraction-download/go"
 	job "github.com/openabstractions/abstraction-job/go"
@@ -33,7 +34,9 @@ import (
 // One per registry. The interface is small because everything hard — resume,
 // verification, delegation, ownership — already belongs to the layers below.
 type Resolver interface {
-	// Registry is the ref scheme this handles: "hf", "ollama".
+	// Registry is the ref scheme this handles: "hf", "ollama", or a provider's
+	// own scheme. For other schemes, Ref.Repo is the opaque locator after ://;
+	// the resolver interprets its syntax. Built-in schemes retain ParseRef rules.
 	Registry() string
 	// Resolve produces a spec with the artifact's digest filled in. It must
 	// refuse rather than return a spec with an empty digest: a download nobody
@@ -62,9 +65,18 @@ func (r *Registry) SetLocal(l *Local) { r.local = l }
 
 // Resolve finds the artifact and every way of getting it, local copies first.
 func (r *Registry) Resolve(ctx context.Context, refStr string) (download.Spec, error) {
-	ref, err := ParseRef(refStr)
-	if err != nil {
-		return download.Spec{}, err
+	refStr = strings.TrimSpace(refStr)
+	scheme, locator, ok := strings.Cut(refStr, "://")
+	if !ok || scheme == "" || locator == "" {
+		return download.Spec{}, fmt.Errorf("model: %q needs a scheme and a nonempty locator", refStr)
+	}
+	ref := Ref{Registry: scheme, Repo: locator}
+	if scheme == "hf" || scheme == "ollama" {
+		var err error
+		ref, err = ParseRef(refStr)
+		if err != nil {
+			return download.Spec{}, err
+		}
 	}
 	for _, res := range r.resolvers {
 		if res.Registry() != ref.Registry {

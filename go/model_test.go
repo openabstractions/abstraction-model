@@ -47,6 +47,51 @@ func TestParseRef(t *testing.T) {
 	}
 }
 
+type privateRegistry struct {
+	got    []Ref
+	digest string
+}
+
+func (p *privateRegistry) Registry() string { return "private" }
+func (p *privateRegistry) Resolve(_ context.Context, ref Ref) (download.Spec, error) {
+	p.got = append(p.got, ref)
+	return download.Spec{Artifact: download.Artifact{Digest: p.digest}}, nil
+}
+
+func TestRegisteredSchemeReachesItsResolver(t *testing.T) {
+	p := &privateRegistry{digest: "sha256:" + strings.Repeat("a", 64)}
+	r := NewRegistry()
+	r.SetLocal(nil)
+	r.Add(p)
+	const locator = "tenant/model@release#variant?format=weights"
+	spec, err := r.Resolve(context.Background(), "private://"+locator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.got) != 1 || p.got[0].Registry != "private" || p.got[0].Repo != locator {
+		t.Fatalf("resolver input: %+v", p.got)
+	}
+	if got := p.got[0].String(); got != "private://"+locator {
+		t.Fatalf("reference lost its scheme: %s", got)
+	}
+	if spec.Artifact.Digest != p.digest {
+		t.Fatal("resolver result was lost")
+	}
+	if _, err := r.Resolve(context.Background(), "private://"); err == nil {
+		t.Fatal("empty locator accepted")
+	}
+	if _, err := r.Resolve(context.Background(), "unregistered://model"); err == nil {
+		t.Fatal("unregistered scheme accepted")
+	}
+	if len(p.got) != 1 {
+		t.Fatal("invalid input reached resolver")
+	}
+	p.digest = ""
+	if _, err := r.Resolve(context.Background(), "private://"+locator); err == nil {
+		t.Fatal("unverifiable resolver result accepted")
+	}
+}
+
 // hfServer stands in for the HuggingFace API.
 func hfServer(t *testing.T, model hfModel) *httptest.Server {
 	t.Helper()

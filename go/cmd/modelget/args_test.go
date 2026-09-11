@@ -74,7 +74,9 @@ func TestParseTakesEveryNameIdentifyIsGiven(t *testing.T) {
 }
 
 func TestStatusCarriesTheClass(t *testing.T) {
-	failed := (&download.Failure{Error: "failed: 404", Permanent: true}).Err()
+	failure := download.FailureOf(errors.New("failed: 404"))
+	failure.Permanent = true
+	failed := failure.Err()
 	for _, c := range []struct {
 		name string
 		err  error

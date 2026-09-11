@@ -19,8 +19,8 @@ import (
 // tag and a filename are not an identity, which is the whole reason this layer
 // insists on a digest before transferring anything.
 type Ref struct {
-	Registry string // "hf", "ollama"
-	Repo     string // "org/name" for hf, "name" for ollama
+	Registry string // "hf", "ollama", or a registered provider's scheme
+	Repo     string // "org/name" for hf, "name" for ollama, opaque locator otherwise
 	Revision string // git revision for hf, tag for ollama; empty means default
 	Quant    string // "Q4_K_M"; hf only; empty means any
 	File     string // an explicit filename, when the caller knows it
@@ -46,10 +46,14 @@ func (r Ref) String() string {
 		}
 		return s
 	}
+	if r.Registry != "" {
+		return r.Registry + "://" + r.Repo
+	}
 	return r.Repo
 }
 
-// ParseRef reads a model reference.
+// ParseRef reads an HF or Ollama reference. Registry.Resolve also accepts
+// registered providers' schemes, leaving their locator syntax to the provider.
 func ParseRef(s string) (Ref, error) {
 	s = strings.TrimSpace(s)
 	scheme, rest, ok := strings.Cut(s, "://")
