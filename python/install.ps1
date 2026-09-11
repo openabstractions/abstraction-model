@@ -78,7 +78,7 @@ Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false -ErrorAction Silent
 
 Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger @($atLogon, $everyMinute) `
     -Principal $principal -Settings $settings `
-    -Description "Routes applications to whichever local host already holds the model. model/python/resident.py." | Out-Null
+    -Description "Routes applications to whichever local host already holds the model. abstraction-model/python/resident.py." | Out-Null
 
 Write-Host "registered    $TaskName (at logon, re-checked every minute, so a broker that dies is back within 60s)"
 

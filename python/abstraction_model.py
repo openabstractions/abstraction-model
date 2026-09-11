@@ -4,8 +4,8 @@ Every token that is not known packaging is kept. The reverse rule — a list of
 noise to strip — collapses a fine-tune onto the model it was tuned from, and
 then a request for one is answered by the other.
 
-The Go package at model/go/identity is the same algorithm; the two are compared
-over model/testdata/identifiers.tsv by scripts/identity-conformance.sh.
+The Go package at abstraction-model/go/identity is the same algorithm; the two are compared
+over abstraction-model/testdata/identifiers.tsv by scripts/identity-conformance.sh.
 """
 
 EXTENSIONS = {".gguf", ".safetensors", ".sft", ".bin", ".pt", ".pt2", ".pth",

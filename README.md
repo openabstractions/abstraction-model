@@ -277,7 +277,7 @@ Two things that test found, both now fixed:
 ## Tested
 
 ```bash
-cd model/go && go test ./...
+cd go && go test ./...
 ```
 
 11 tests: reference parsing, revision pinning, refusing a file with no published

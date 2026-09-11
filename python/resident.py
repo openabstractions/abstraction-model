@@ -7,7 +7,7 @@ from abstraction_model import family as parsed_family
 try:
     import abstraction_job as job
 except ImportError:
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "job", "python"))
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "abstraction-job", "python"))
     import abstraction_job as job
 
 try:
