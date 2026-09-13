@@ -21,6 +21,7 @@ package model
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -54,6 +55,15 @@ func NewRegistry(rs ...Resolver) *Registry {
 	return &Registry{resolvers: rs, local: NewLocal()}
 }
 
+// NewServiceRegistry selects providers without discovering local stores. Configure
+// the registry before serving concurrent lookups; Add and SetLocal are setup APIs.
+func NewServiceRegistry(rs ...Resolver) *Registry {
+	return &Registry{resolvers: append([]Resolver(nil), rs...)}
+}
+
+var ErrNoResolver = errors.New("model registry unavailable")
+var ErrMissingDigest = errors.New("model mapping has no digest")
+
 // Default is every resolver that needs no configuration.
 func Default() *Registry { return NewRegistry(HF{}, Ollama{}) }
 
@@ -78,6 +88,15 @@ func (r *Registry) Resolve(ctx context.Context, refStr string) (download.Spec, e
 			return download.Spec{}, err
 		}
 	}
+	return r.ResolveRef(ctx, ref)
+}
+
+// ResolveRef preserves every typed reference field when selecting the configured
+// provider. Local augmentation occurs only when explicitly configured on r.
+func (r *Registry) ResolveRef(ctx context.Context, ref Ref) (download.Spec, error) {
+	if r == nil {
+		return download.Spec{}, ErrNoResolver
+	}
 	for _, res := range r.resolvers {
 		if res.Registry() != ref.Registry {
 			continue
@@ -87,15 +106,14 @@ func (r *Registry) Resolve(ctx context.Context, refStr string) (download.Spec, e
 			return download.Spec{}, err
 		}
 		if spec.Artifact.Digest == "" {
-			return download.Spec{}, fmt.Errorf("model: %s resolved %s without a digest; refusing to fetch bytes nobody can check",
-				res.Registry(), refStr)
+			return download.Spec{}, ErrMissingDigest
 		}
 		if r.local != nil {
 			spec = r.local.Augment(spec)
 		}
 		return spec, nil
 	}
-	return download.Spec{}, fmt.Errorf("model: no resolver for %q", ref.Registry)
+	return download.Spec{}, fmt.Errorf("%w: %s", ErrNoResolver, ref.Registry)
 }
 
 // Submit resolves a reference and submits it as a download job. It returns the

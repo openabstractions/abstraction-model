@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.16)
+project(model_api_consumer LANGUAGES CXX)
+find_package(abstraction_model_api CONFIG REQUIRED)
+add_executable(model_api_consumer main.cpp)
+target_link_libraries(model_api_consumer PRIVATE abstraction::model_api)
+enable_testing()
+add_test(NAME model_api_consumer COMMAND model_api_consumer)

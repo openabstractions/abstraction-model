@@ -1,5 +1,13 @@
 # model — pull weights without losing them, and without fetching what you already have
 
+Service adopters use `go/client.New(endpoint).ResolveContext(ctx, ref)` after
+selecting an `abstraction.model/resolver@1` service. It returns a typed portable
+download request, or an explicit lookup outcome. [Service contract](CONTRACT.md)
+describes unsupported native mappings, waiting and authorization. The existing
+`modelget`, Registry and local-store adapters below remain explicitly selected
+native workflows.
+
+
 ```
 $ modelget where ollama://qwen2.5:0.5b
 digest  sha256:c5396e06af294bd101b30dce59131a76d2b773e76950acc870eda801d3ab0515
@@ -275,6 +283,18 @@ Two things that test found, both now fixed:
 - **Only `.gguf` is auto-selected.** Name a file explicitly for anything else.
 
 ## Tested
+
+### Regenerating the service API
+
+`model.thrift` includes `../abstraction-download/request.thrift`. Contributors
+need sibling `abstraction-model` and `abstraction-download` source checkouts at
+the matching revisions supplied by the release tooling. A lone model checkout
+does not contain the dependency schema needed for regeneration. Generate the
+download request with `--named-codecs`, and generate model with
+`--go-import=request=github.com/openabstractions/abstraction-download/go/abstraction/download/request`.
+The organization generation targets record these flags. Installed generated API
+consumers use the normal language/package dependency on download request; they
+do not need the sibling schema sources.
 
 ```bash
 cd go && go test ./...
