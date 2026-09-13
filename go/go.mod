@@ -3,16 +3,16 @@ module github.com/openabstractions/abstraction-model/go
 go 1.26.0
 
 require (
-	github.com/openabstractions/abstraction-download/go v0.4.1
-	github.com/openabstractions/abstraction-job/go v0.4.1
-	github.com/openabstractions/abstraction-storage/go v0.2.0
+	github.com/openabstractions/abstraction-download/go v0.4.3-0.20260913091021-e63ec18a0e2b
+	github.com/openabstractions/abstraction-job/go v0.4.3-0.20260913090942-06eddccb1ffe
+	github.com/openabstractions/abstraction-storage/go v0.2.1-0.20260913090905-d7092ee93ef9
 )
 
 require golang.org/x/sys v0.47.0 // indirect
 
 require (
-	github.com/openabstractions/abstraction-cas/go v0.2.0 // indirect
-	github.com/openabstractions/abstraction-config/go v0.3.0 // indirect
-	github.com/openabstractions/abstraction-identity v0.2.1-0.20260911225957-3aa75da4cda3 // indirect
-	github.com/openabstractions/abstraction-watch/go v0.2.0 // indirect
+	github.com/openabstractions/abstraction-cas/go v0.3.1-0.20260913090841-c64b42cc8460 // indirect
+	github.com/openabstractions/abstraction-config/go v0.3.1-0.20260913090930-b42c90e2f37f // indirect
+	github.com/openabstractions/abstraction-identity v0.2.1-0.20260913090829-6916ad75b439
+	github.com/openabstractions/abstraction-watch/go v0.2.1-0.20260913090853-0286faef3daa // indirect
 )
