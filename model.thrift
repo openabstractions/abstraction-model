@@ -47,5 +47,5 @@ struct LookupResult {
  2: optional request.Request request (omit="absent")
 }(unknown_fields="refuse",doc="Request is present exactly when outcome is resolved. Unavailable reports an unsuccessful lookup without declaring it transient or permanent. Unsupported_mapping preserves the refusal to discard native source metadata, credentials, private locations or destination authority. No job is submitted by lookup.")
 service ModelResolver {
- LookupResult Resolve(1: Ref ref)
+ LookupResult Resolve(1: Ref ref (rust.name = "reference"))
 }(wire_name="abstraction.model/resolver@1",doc="Same-account identity-bound model lookup through explicitly configured registry providers. A resolved request contains a nonempty verified-format digest and a complete anonymous HTTP(S) mapping. Providers refuse mappings needing capabilities absent from the portable download request. Local adapters and registry configuration remain explicit provider-side APIs.")

@@ -154,6 +154,10 @@ inline const std::vector<std::string> kResolverOperations = {"Registry", "Resolv
 
 inline const std::vector<std::string> kRegistryOperations = {"Add", "SetLocal", "Resolve"};
 
+// Native model reference: hf uses repository, revision, optional quant or
+// explicit file; ollama uses repository and tag revision. Empty revision means
+// provider default. Custom registry schemes retain the opaque locator in repo.
+// Parsing and provider validation remain native.
 struct Ref {
     std::string registry;
     std::string repo;
@@ -162,6 +166,11 @@ struct Ref {
     std::string file;
 };
 
+// Request is present exactly when outcome is resolved. Unavailable reports an
+// unsuccessful lookup without declaring it transient or permanent.
+// Unsupported_mapping preserves the refusal to discard native source metadata,
+// credentials, private locations or destination authority. No job is submitted
+// by lookup.
 struct LookupResult {
     std::string outcome;
     std::optional<OAImported0> request;

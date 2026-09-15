@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"errors"
+	identity "github.com/openabstractions/abstraction-identity"
 	"github.com/openabstractions/abstraction-identity/listen"
 	model "github.com/openabstractions/abstraction-model/go"
 	wire "github.com/openabstractions/abstraction-model/go/abstraction/model/api"
@@ -26,9 +27,35 @@ type Host struct {
 	once      sync.Once
 	workers   sync.WaitGroup
 	slots     chan struct{}
+	policy    LookupPolicy
 	OnError   func(error)
 	// Assign before Serve. Called when admission stops, before calls drain.
 	OnStopped func()
+}
+
+// LookupPolicy authorizes a lookup in one registry for the rechecked receiving
+// peer, after same-account proof and before any registry provider is asked. It
+// must honor ctx and be safe for concurrent calls. Wrap ErrPolicyUnavailable
+// when the decision cannot be obtained; every other error is a refusal.
+type LookupPolicy func(ctx context.Context, peer *identity.Peer, registry string) error
+
+// ErrPolicyUnavailable distinguishes a failed decision lookup from refusal.
+var ErrPolicyUnavailable = errors.New("model service: lookup policy unavailable")
+
+// EnablePolicy narrows lookup to callers the policy authorizes per registry.
+// Configure it before Serve. Refusal returns forbidden and a failed decision
+// returns unavailable; neither reaches a registry provider.
+func (h *Host) EnablePolicy(policy LookupPolicy) error {
+	h.lifecycle.Lock()
+	defer h.lifecycle.Unlock()
+	if h.serving || h.ctx.Err() != nil {
+		return errors.New("model service: configure policy before Serve")
+	}
+	if policy == nil {
+		return errors.New("model service: explicit policy required")
+	}
+	h.policy = policy
+	return nil
 }
 
 // Listen requires explicit provider configuration. It performs no discovery.
@@ -138,6 +165,22 @@ func (r *receiver) authorized() bool {
 func (r *receiver) Resolve(ref wire.Ref) (wire.LookupResult, error) {
 	if !r.authorized() {
 		return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
+	}
+	r.host.lifecycle.Lock()
+	policy := r.host.policy
+	r.host.lifecycle.Unlock()
+	if policy != nil {
+		peer, err := r.call.Peer()
+		if err != nil {
+			return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
+		}
+		err = policy(r.ctx, peer, ref.Registry)
+		if r.ctx.Err() != nil || errors.Is(err, ErrPolicyUnavailable) {
+			return wire.LookupResult{Outcome: wire.LookupOutcomeUnavailable}, nil
+		}
+		if err != nil {
+			return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
+		}
 	}
 	return lookup(r.ctx, r.host.registry, ref), nil
 }

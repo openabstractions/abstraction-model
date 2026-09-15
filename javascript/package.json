@@ -1,0 +1,26 @@
+{
+  "name": "@openabstractions/model",
+  "version": "0.0.0",
+  "description": "Generated JavaScript client and codecs for identity-bound model lookup returning portable download requests.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/openabstractions/abstraction-model.git",
+    "directory": "javascript"
+  },
+  "homepage": "https://github.com/openabstractions/abstraction-model#readme",
+  "bugs": {
+    "url": "https://github.com/openabstractions/abstraction-model/issues"
+  },
+  "type": "module",
+  "exports": "./js/abstraction/model/api/rec.mjs",
+  "files": [
+    "js"
+  ],
+  "dependencies": {
+    "@openabstractions/download-request": "0.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
