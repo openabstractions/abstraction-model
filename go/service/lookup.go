@@ -13,12 +13,19 @@ import (
 )
 
 func lookup(ctx context.Context, registry *model.Registry, ref wire.Ref) wire.LookupResult {
-	result := func(outcome string) wire.LookupResult { return wire.LookupResult{Outcome: outcome} }
+	result := func(outcome wire.LookupOutcome) wire.LookupResult { return wire.LookupResult{Outcome: outcome} }
 	if !validRef(ref) {
 		return result(wire.LookupOutcomeInvalid)
 	}
-	spec, e := registry.ResolveRef(ctx, model.Ref{Registry: ref.Registry, Repo: ref.Repo, Revision: ref.Revision, Quant: ref.Quant, File: ref.File})
+	spec, e := registry.ResolveRef(ctx, model.Ref{Registry: ref.Registry, Repo: ref.Repo, Revision: ref.Revision, Quant: ref.Quant, File: ref.File, Credential: ref.Credential})
 	if errors.Is(e, model.ErrMissingDigest) {
+		return result(wire.LookupOutcomeUnsupportedMapping)
+	}
+	var refused *download.CredentialError
+	if errors.As(e, &refused) {
+		if refused.Retryable() {
+			return result(wire.LookupOutcomeUnavailable)
+		}
 		return result(wire.LookupOutcomeUnsupportedMapping)
 	}
 	if e != nil {
@@ -29,20 +36,25 @@ func lookup(ctx context.Context, registry *model.Registry, ref wire.Ref) wire.Lo
 	}
 	value := request.Request{Artifact: request.Artifact{Digest: spec.Artifact.Digest, Size: spec.Artifact.Size}}
 	for _, source := range spec.Sources {
-		if len(source.Attrs) > 0 || len(source.Headers) > 0 || source.Priority != 0 {
+		// The only attribute a portable source carries is the Ref's own credential name.
+		credential := source.Attrs[download.CredentialAttr]
+		if len(source.Attrs) > 1 || (len(source.Attrs) == 1 && (credential == "" || credential != ref.Credential)) || len(source.Headers) > 0 || source.Priority != 0 {
 			return result(wire.LookupOutcomeUnsupportedMapping)
 		}
-		value.Sources = append(value.Sources, request.Source{Scheme: source.Scheme, Locator: source.Locator})
+		value.Sources = append(value.Sources, request.Source{Scheme: source.Scheme, Locator: source.Locator, Credential: credential})
 	}
-	// Prepare is the existing pure portable-request validator. Its private sink
-	// allocation is discarded; lookup never opens a store or submits this work.
-	if _, e = (downloadserve.HTTPExecution{}).Prepare("model-lookup-validation", download.Kind, request.Encode(&value)); e != nil {
+	// ValidateRequest is the pure portable-request validator of the execution
+	// profile; lookup never opens a store or submits this work.
+	if e = downloadserve.ValidateRequest(request.Encode(&value)); e != nil {
 		return result(wire.LookupOutcomeUnsupportedMapping)
 	}
 	return wire.LookupResult{Outcome: wire.LookupOutcomeResolved, Request: &value}
 }
 func validRef(ref wire.Ref) bool {
 	if strings.TrimSpace(ref.Registry) == "" || strings.TrimSpace(ref.Repo) == "" {
+		return false
+	}
+	if ref.Credential != "" && (len(ref.Credential) > 64 || strings.Trim(ref.Credential, "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_.-") != "") {
 		return false
 	}
 	for _, s := range []string{ref.Registry, ref.Repo, ref.Revision, ref.Quant, ref.File} {

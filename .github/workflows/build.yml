@@ -78,31 +78,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      # The python of this layer imports the layers below it by relative path,
-      # so the runner is laid out the way a reader lays out clones: this
-      # repository beside its siblings, each at its default branch.
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          path: abstraction-model
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: openabstractions/abstraction-download
-          path: abstraction-download
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: openabstractions/abstraction-job
-          path: abstraction-job
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: openabstractions/abstraction-cas
-          path: abstraction-cas
-      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-        with:
-          repository: openabstractions/abstraction-watch
-          path: abstraction-watch
 
       - name: test
-        working-directory: abstraction-model/python
+        working-directory: python
         run: |
           PY="$(command -v python3 || command -v python || true)"
           if [ -z "$PY" ]; then
@@ -111,15 +90,12 @@ jobs:
             exit 0
           fi
           "$PY" --version
-          sep=':'
-          [ "$RUNNER_OS" = Windows ] && sep=';'
-          export PYTHONPATH="$GITHUB_WORKSPACE/abstraction-download/python${sep}$GITHUB_WORKSPACE/abstraction-job/python${sep}$GITHUB_WORKSPACE/abstraction-cas/python${sep}$GITHUB_WORKSPACE/abstraction-watch/python"
           "$PY" -m unittest discover -p 'test_*.py' 2>&1 | tee out.txt
           if grep -q '^Ran 0 tests' out.txt; then
             printf 'FAIL  discovery found no test to run, and unittest calls that a pass\n'
             exit 1
           fi
-          printf '%s: python, %s tests, with download, job, cas and watch beside it\n' \
+          printf '%s: python, %s tests\n' \
             "$RUNNER_OS" "$(sed -n 's/^Ran \([0-9]*\) tests\?.*/\1/p' out.txt | tail -1)" >> "$GITHUB_STEP_SUMMARY"
 
   unproven:
@@ -132,8 +108,6 @@ jobs:
           {
             printf '\n### UNPROVEN\n\nThis workflow builds what this repository contains, and nothing else. It ran none of:\n\n'
             printf -- '- the cross-language conformance harnesses, which live in the private tree\n'
-            printf -- '- install.ps1 and uninstall.ps1, which change a machine and are not run on a runner\n'
-            printf -- '- any real model download or residency measurement; nothing here reaches a network or a GPU\n'
+            printf -- '- any real model download; nothing here reaches a network or a GPU\n'
             printf -- '- any signed or installed artefact\n'
-            printf -- '- the siblings at any pinned revision. python takes download, job, cas and watch at their default branch, so this is a statement about today.\n'
           } >> "$GITHUB_STEP_SUMMARY"

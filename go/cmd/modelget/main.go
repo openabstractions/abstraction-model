@@ -159,7 +159,7 @@ func registry() *model.Registry {
 // One consequence worth stating rather than discovering later: reaching the NAS
 // or BITS now requires a supervisor to be running (`jobd start`). Without one,
 // modelget downloads in this process, which is the bottom of the chain and not a
-// failure. That is exactly what dl does, and what scripts/tiers.sh proves.
+// failure.
 //
 // The one thing genuinely lost is that the NAS used to stage model files under
 // "models/" rather than the generic "files/", because this layer knew what it

@@ -2,6 +2,7 @@
 
 package api
 import oa_dependency_request "github.com/openabstractions/abstraction-download/go/abstraction/download/request"
+import oa_dependency_content "github.com/openabstractions/abstraction-storage/go/abstraction/storage/content"
 
 type Raw = string
 
@@ -188,21 +189,269 @@ func esc(out []byte, s string) []byte {
 	return append(out, '"')
 }
 
-type OAImported0 = oa_dependency_request.Request
+type oaImported0 = oa_dependency_request.Request
+type oaImported1 = oa_dependency_content.Manifest
 
-var LookupOutcomeNames = []string{"resolved", "invalid", "unavailable", "unsupported_mapping", "forbidden"}
+// LookupOutcome is a closed vocabulary. Its numeric values are private implementation
+// tags; String and ParseLookupOutcome preserve the exact wire words.
+type LookupOutcome uint32
 
-const LookupOutcomeResolved = "resolved"
+const (
+	LookupOutcomeResolved           LookupOutcome = 1
+	LookupOutcomeInvalid            LookupOutcome = 2
+	LookupOutcomeUnavailable        LookupOutcome = 3
+	LookupOutcomeUnsupportedMapping LookupOutcome = 4
+	LookupOutcomeForbidden          LookupOutcome = 5
+)
 
-const LookupOutcomeInvalid = "invalid"
+// String returns v's exact wire word, or the empty string for an invalid value.
+func (v LookupOutcome) String() string {
+	word, _ := v.WireName()
+	return word
+}
 
-const LookupOutcomeUnavailable = "unavailable"
+// WireName returns v's exact wire word and whether v names a member.
+func (v LookupOutcome) WireName() (string, bool) {
+	switch v {
+	case LookupOutcomeResolved:
+		return "resolved", true
+	case LookupOutcomeInvalid:
+		return "invalid", true
+	case LookupOutcomeUnavailable:
+		return "unavailable", true
+	case LookupOutcomeUnsupportedMapping:
+		return "unsupported_mapping", true
+	case LookupOutcomeForbidden:
+		return "forbidden", true
+	}
+	return "", false
+}
 
-const LookupOutcomeUnsupportedMapping = "unsupported_mapping"
+// ParseLookupOutcome returns the member named by an exact wire word.
+func ParseLookupOutcome(word string) (LookupOutcome, bool) {
+	switch word {
+	case "resolved":
+		return LookupOutcomeResolved, true
+	case "invalid":
+		return LookupOutcomeInvalid, true
+	case "unavailable":
+		return LookupOutcomeUnavailable, true
+	case "unsupported_mapping":
+		return LookupOutcomeUnsupportedMapping, true
+	case "forbidden":
+		return LookupOutcomeForbidden, true
+	}
+	return LookupOutcome(0), false
+}
 
-const LookupOutcomeForbidden = "forbidden"
+// MarshalText preserves the member's exact wire word for standard text users,
+// including JSON object keys. Invalid and zero values are refused.
+func (v LookupOutcome) MarshalText() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return []byte(word), nil
+}
 
-const LookupOutcomeUnknown = "refuse"
+// UnmarshalText accepts an exact wire word and refuses unknown text.
+func (v *LookupOutcome) UnmarshalText(text []byte) error {
+	word, ok := ParseLookupOutcome(string(text))
+	if !ok {
+		return &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	*v = word
+	return nil
+}
+
+// MarshalJSON keeps closed vocabularies as JSON strings rather than their
+// private numeric implementation tags.
+func (v LookupOutcome) MarshalJSON() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return esc(nil, word), nil
+}
+
+// UnmarshalJSON accepts only an exact JSON string member. Numbers, null and
+// unknown strings are refused by the same codec rules as generated records.
+func (v *LookupOutcome) UnmarshalJSON(data []byte) error {
+	r := reader{buf: data}
+	r.ws()
+	word, err := r.str()
+	if err != nil {
+		return err
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		return r.refuse("trailing_bytes")
+	}
+	parsed, ok := ParseLookupOutcome(word)
+	if !ok {
+		return r.refuse("bad_enum")
+	}
+	*v = parsed
+	return nil
+}
+
+// LookupOutcomeValues returns every member of LookupOutcome in declaration order, in a new slice.
+func LookupOutcomeValues() []LookupOutcome {
+	return []LookupOutcome{LookupOutcomeResolved, LookupOutcomeInvalid, LookupOutcomeUnavailable, LookupOutcomeUnsupportedMapping, LookupOutcomeForbidden}
+}
+
+// Known reports whether v is a member of LookupOutcome.
+func (v LookupOutcome) Known() bool {
+	_, ok := v.WireName()
+	return ok
+}
+
+// ManifestOutcome is a closed vocabulary. Its numeric values are private implementation
+// tags; String and ParseManifestOutcome preserve the exact wire words.
+type ManifestOutcome uint32
+
+const (
+	ManifestOutcomeResolved           ManifestOutcome = 1
+	ManifestOutcomeNotFound           ManifestOutcome = 2
+	ManifestOutcomeInvalid            ManifestOutcome = 3
+	ManifestOutcomeUnavailable        ManifestOutcome = 4
+	ManifestOutcomeUnsupportedMapping ManifestOutcome = 5
+	ManifestOutcomeForbidden          ManifestOutcome = 6
+)
+
+// String returns v's exact wire word, or the empty string for an invalid value.
+func (v ManifestOutcome) String() string {
+	word, _ := v.WireName()
+	return word
+}
+
+// WireName returns v's exact wire word and whether v names a member.
+func (v ManifestOutcome) WireName() (string, bool) {
+	switch v {
+	case ManifestOutcomeResolved:
+		return "resolved", true
+	case ManifestOutcomeNotFound:
+		return "not_found", true
+	case ManifestOutcomeInvalid:
+		return "invalid", true
+	case ManifestOutcomeUnavailable:
+		return "unavailable", true
+	case ManifestOutcomeUnsupportedMapping:
+		return "unsupported_mapping", true
+	case ManifestOutcomeForbidden:
+		return "forbidden", true
+	}
+	return "", false
+}
+
+// ParseManifestOutcome returns the member named by an exact wire word.
+func ParseManifestOutcome(word string) (ManifestOutcome, bool) {
+	switch word {
+	case "resolved":
+		return ManifestOutcomeResolved, true
+	case "not_found":
+		return ManifestOutcomeNotFound, true
+	case "invalid":
+		return ManifestOutcomeInvalid, true
+	case "unavailable":
+		return ManifestOutcomeUnavailable, true
+	case "unsupported_mapping":
+		return ManifestOutcomeUnsupportedMapping, true
+	case "forbidden":
+		return ManifestOutcomeForbidden, true
+	}
+	return ManifestOutcome(0), false
+}
+
+// MarshalText preserves the member's exact wire word for standard text users,
+// including JSON object keys. Invalid and zero values are refused.
+func (v ManifestOutcome) MarshalText() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return []byte(word), nil
+}
+
+// UnmarshalText accepts an exact wire word and refuses unknown text.
+func (v *ManifestOutcome) UnmarshalText(text []byte) error {
+	word, ok := ParseManifestOutcome(string(text))
+	if !ok {
+		return &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	*v = word
+	return nil
+}
+
+// MarshalJSON keeps closed vocabularies as JSON strings rather than their
+// private numeric implementation tags.
+func (v ManifestOutcome) MarshalJSON() ([]byte, error) {
+	word, ok := v.WireName()
+	if !ok {
+		return nil, &Refusal{Word: "bad_enum", Offset: 0}
+	}
+	return esc(nil, word), nil
+}
+
+// UnmarshalJSON accepts only an exact JSON string member. Numbers, null and
+// unknown strings are refused by the same codec rules as generated records.
+func (v *ManifestOutcome) UnmarshalJSON(data []byte) error {
+	r := reader{buf: data}
+	r.ws()
+	word, err := r.str()
+	if err != nil {
+		return err
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		return r.refuse("trailing_bytes")
+	}
+	parsed, ok := ParseManifestOutcome(word)
+	if !ok {
+		return r.refuse("bad_enum")
+	}
+	*v = parsed
+	return nil
+}
+
+// ManifestOutcomeValues returns every member of ManifestOutcome in declaration order, in a new slice.
+func ManifestOutcomeValues() []ManifestOutcome {
+	return []ManifestOutcome{ManifestOutcomeResolved, ManifestOutcomeNotFound, ManifestOutcomeInvalid, ManifestOutcomeUnavailable, ManifestOutcomeUnsupportedMapping, ManifestOutcomeForbidden}
+}
+
+// Known reports whether v is a member of ManifestOutcome.
+func (v ManifestOutcome) Known() bool {
+	_, ok := v.WireName()
+	return ok
+}
+
+// ServiceErrorCode is an open vocabulary: a reader keeps a word it has never heard, so
+// a value may be none of the constants below. ServiceErrorCode(word) and string(v)
+// convert between the raw word and the vocabulary.
+type ServiceErrorCode string
+
+const (
+	ServiceErrorCodeHandlerError   ServiceErrorCode = "handler_error"
+	ServiceErrorCodeInvalidResult  ServiceErrorCode = "invalid_result"
+	ServiceErrorCodeUnknownVersion ServiceErrorCode = "unknown_version"
+	ServiceErrorCodeUnknownService ServiceErrorCode = "unknown_service"
+	ServiceErrorCodeUnknownMethod  ServiceErrorCode = "unknown_method"
+	ServiceErrorCodeWrongMode      ServiceErrorCode = "wrong_mode"
+)
+
+// ServiceErrorCodeValues returns every member of ServiceErrorCode in declaration order, in a new slice.
+func ServiceErrorCodeValues() []ServiceErrorCode {
+	return []ServiceErrorCode{ServiceErrorCodeHandlerError, ServiceErrorCodeInvalidResult, ServiceErrorCodeUnknownVersion, ServiceErrorCodeUnknownService, ServiceErrorCodeUnknownMethod, ServiceErrorCodeWrongMode}
+}
+
+// Known reports whether v is a member of ServiceErrorCode.
+func (v ServiceErrorCode) Known() bool {
+	switch v {
+	case ServiceErrorCodeHandlerError, ServiceErrorCodeInvalidResult, ServiceErrorCodeUnknownVersion, ServiceErrorCodeUnknownService, ServiceErrorCodeUnknownMethod, ServiceErrorCodeWrongMode:
+		return true
+	}
+	return false
+}
 
 var ResolverOperations = []string{"Registry", "Resolve"}
 
@@ -211,37 +460,59 @@ var RegistryOperations = []string{"Add", "SetLocal", "Resolve"}
 // Native model reference: hf uses repository, revision, optional quant or
 // explicit file; ollama uses repository and tag revision. Empty revision means
 // provider default. Custom registry schemes retain the opaque locator in repo.
-// Parsing and provider validation remain native.
+// Parsing and provider validation remain native. credential, when present,
+// names a credential registered with abstraction.credentials/holder@1 in the
+// caller's account. The resolver applies it through
+// abstraction.credentials/applier@1 with consumer abstraction.model/resolver@1
+// to its registry metadata requests, and every source of the resolved request
+// carries the same name.
 type Ref struct {
-	Registry string
-	Repo     string
-	Revision string
-	Quant    string
-	File     string
+	Registry   string
+	Repo       string
+	Revision   string
+	Quant      string
+	File       string
+	Credential string
 }
 
 // Request is present exactly when outcome is resolved. Unavailable reports an
 // unsuccessful lookup without declaring it transient or permanent.
 // Unsupported_mapping preserves the refusal to discard native source metadata,
-// credentials, private locations or destination authority. No job is submitted
-// by lookup.
+// secret values, private locations or destination authority; a Ref credential
+// the applier refuses also reads unsupported_mapping, and an applier that
+// cannot answer reads unavailable. No job is submitted by lookup.
 type LookupResult struct {
-	Outcome string
-	Request *OAImported0
+	Outcome LookupOutcome
+	Request *oaImported0
 }
 
-type OAModelResolverResolveArguments struct {
+// manifest present exactly for resolved. The manifest is content-addressed: a
+// registry answers with digests, and an entry the registry cannot name by
+// digest makes the lookup unsupported_mapping. resolved_revision is the
+// registry's immutable revision the reference resolved to, and empty for every
+// other outcome.
+type ManifestResult struct {
+	Outcome          ManifestOutcome
+	Manifest         *oaImported1
+	ResolvedRevision string
+}
+
+type oaModelResolverResolveArguments struct {
 	Ref Ref
 }
 
-type OAServiceFrame struct {
+type oaModelManifestResolveArguments struct {
+	Ref Ref
+}
+
+type oaServiceFrame struct {
 	Version   int32
 	Service   string
 	Method    string
 	Arguments Raw
 }
 
-type OAServiceReply struct {
+type oaServiceReply struct {
 	Version int32
 	Service string
 	Method  string
@@ -249,13 +520,17 @@ type OAServiceReply struct {
 	Payload Raw
 }
 
-type OAServiceError struct {
+type oaServiceError struct {
 	Code    string
 	Message string
 }
 
-type OAModelResolverResolveResult struct {
+type oaModelResolverResolveResult struct {
 	Value LookupResult
+}
+
+type oaModelManifestResolveResult struct {
+	Value ManifestResult
 }
 
 func encRef(out []byte, v *Ref, depth int) []byte {
@@ -289,13 +564,21 @@ func encRef(out []byte, v *Ref, depth int) []byte {
 	out = esc(out, "file")
 	out = append(out, ':', ' ')
 	out = esc(out, v.File)
+	if v.Credential != "" {
+		out = append(out, ',')
+		out = append(out, '\n')
+		out = pad(out, depth+1)
+		out = esc(out, "credential")
+		out = append(out, ':', ' ')
+		out = esc(out, v.Credential)
+	}
 	out = append(out, '\n')
 	out = pad(out, depth)
 	return append(out, '}')
 }
 
 func encLookupResult(out []byte, v *LookupResult, depth int) []byte {
-	if v.Outcome != "resolved" && v.Outcome != "invalid" && v.Outcome != "unavailable" && v.Outcome != "unsupported_mapping" && v.Outcome != "forbidden" {
+	if !(v.Outcome).Known() {
 		panic(&Refusal{Word: "bad_enum", Offset: 0})
 	}
 	out = append(out, '{')
@@ -303,7 +586,7 @@ func encLookupResult(out []byte, v *LookupResult, depth int) []byte {
 	out = pad(out, depth+1)
 	out = esc(out, "outcome")
 	out = append(out, ':', ' ')
-	out = esc(out, v.Outcome)
+	out = esc(out, v.Outcome.String())
 	if v.Request != nil {
 		out = append(out, ',')
 		out = append(out, '\n')
@@ -317,7 +600,36 @@ func encLookupResult(out []byte, v *LookupResult, depth int) []byte {
 	return append(out, '}')
 }
 
-func encOAModelResolverResolveArguments(out []byte, v *OAModelResolverResolveArguments, depth int) []byte {
+func encManifestResult(out []byte, v *ManifestResult, depth int) []byte {
+	if !(v.Outcome).Known() {
+		panic(&Refusal{Word: "bad_enum", Offset: 0})
+	}
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "outcome")
+	out = append(out, ':', ' ')
+	out = esc(out, v.Outcome.String())
+	if v.Manifest != nil {
+		out = append(out, ',')
+		out = append(out, '\n')
+		out = pad(out, depth+1)
+		out = esc(out, "manifest")
+		out = append(out, ':', ' ')
+		out = encOAImported1(out, v.Manifest, depth+1)
+	}
+	out = append(out, ',')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "resolved_revision")
+	out = append(out, ':', ' ')
+	out = esc(out, v.ResolvedRevision)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAModelResolverResolveArguments(out []byte, v *oaModelResolverResolveArguments, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
@@ -329,7 +641,19 @@ func encOAModelResolverResolveArguments(out []byte, v *OAModelResolverResolveArg
 	return append(out, '}')
 }
 
-func encOAServiceFrame(out []byte, v *OAServiceFrame, depth int) []byte {
+func encOAModelManifestResolveArguments(out []byte, v *oaModelManifestResolveArguments, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "ref")
+	out = append(out, ':', ' ')
+	out = encRef(out, &v.Ref, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAServiceFrame(out []byte, v *oaServiceFrame, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
@@ -359,7 +683,7 @@ func encOAServiceFrame(out []byte, v *OAServiceFrame, depth int) []byte {
 	return append(out, '}')
 }
 
-func encOAServiceReply(out []byte, v *OAServiceReply, depth int) []byte {
+func encOAServiceReply(out []byte, v *oaServiceReply, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
@@ -399,7 +723,7 @@ func encOAServiceReply(out []byte, v *OAServiceReply, depth int) []byte {
 	return append(out, '}')
 }
 
-func encOAServiceError(out []byte, v *OAServiceError, depth int) []byte {
+func encOAServiceError(out []byte, v *oaServiceError, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
@@ -417,13 +741,25 @@ func encOAServiceError(out []byte, v *OAServiceError, depth int) []byte {
 	return append(out, '}')
 }
 
-func encOAModelResolverResolveResult(out []byte, v *OAModelResolverResolveResult, depth int) []byte {
+func encOAModelResolverResolveResult(out []byte, v *oaModelResolverResolveResult, depth int) []byte {
 	out = append(out, '{')
 	out = append(out, '\n')
 	out = pad(out, depth+1)
 	out = esc(out, "value")
 	out = append(out, ':', ' ')
 	out = encLookupResult(out, &v.Value, depth+1)
+	out = append(out, '\n')
+	out = pad(out, depth)
+	return append(out, '}')
+}
+
+func encOAModelManifestResolveResult(out []byte, v *oaModelManifestResolveResult, depth int) []byte {
+	out = append(out, '{')
+	out = append(out, '\n')
+	out = pad(out, depth+1)
+	out = esc(out, "value")
+	out = append(out, ':', ' ')
+	out = encManifestResult(out, &v.Value, depth+1)
 	out = append(out, '\n')
 	out = pad(out, depth)
 	return append(out, '}')
@@ -989,6 +1325,16 @@ func (r *reader) decodeRef() (*Ref, error) {
 					return nil, err
 				}
 				v.File = x
+			case "credential":
+				if seen&32 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 32
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.Credential = x
 			default:
 				return nil, r.refuse("unknown_field")
 			}
@@ -1047,7 +1393,11 @@ func (r *reader) decodeLookupResult() (*LookupResult, error) {
 				if err != nil {
 					return nil, err
 				}
-				v.Outcome = x
+				word, ok := ParseLookupOutcome(x)
+				if !ok {
+					return nil, r.refuse("bad_enum")
+				}
+				v.Outcome = word
 			case "request":
 				if seen&2 != 0 {
 					return nil, r.refuse("duplicate_field")
@@ -1076,13 +1426,13 @@ func (r *reader) decodeLookupResult() (*LookupResult, error) {
 	if seen&1 != 1 {
 		return nil, r.refuse("missing_field")
 	}
-	if v.Outcome != "resolved" && v.Outcome != "invalid" && v.Outcome != "unavailable" && v.Outcome != "unsupported_mapping" && v.Outcome != "forbidden" {
+	if !(v.Outcome).Known() {
 		return nil, r.refuse("bad_enum")
 	}
 	return v, nil
 }
 
-func (r *reader) decodeOAModelResolverResolveArguments() (*OAModelResolverResolveArguments, error) {
+func (r *reader) decodeManifestResult() (*ManifestResult, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
 	}
@@ -1090,7 +1440,93 @@ func (r *reader) decodeOAModelResolverResolveArguments() (*OAModelResolverResolv
 		return nil, err
 	}
 	r.pos++
-	v := &OAModelResolverResolveArguments{}
+	v := &ManifestResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "outcome":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				word, ok := ParseManifestOutcome(x)
+				if !ok {
+					return nil, r.refuse("bad_enum")
+				}
+				v.Outcome = word
+			case "manifest":
+				if seen&2 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 2
+				x, err := r.decodeOAImported1()
+				if err != nil {
+					return nil, err
+				}
+				v.Manifest = x
+			case "resolved_revision":
+				if seen&4 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 4
+				x, err := r.str()
+				if err != nil {
+					return nil, err
+				}
+				v.ResolvedRevision = x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&5 != 5 {
+		return nil, r.refuse("missing_field")
+	}
+	if !(v.Outcome).Known() {
+		return nil, r.refuse("bad_enum")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAModelResolverResolveArguments() (*oaModelResolverResolveArguments, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaModelResolverResolveArguments{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -1141,7 +1577,7 @@ func (r *reader) decodeOAModelResolverResolveArguments() (*OAModelResolverResolv
 	return v, nil
 }
 
-func (r *reader) decodeOAServiceFrame() (*OAServiceFrame, error) {
+func (r *reader) decodeOAModelManifestResolveArguments() (*oaModelManifestResolveArguments, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
 	}
@@ -1149,7 +1585,66 @@ func (r *reader) decodeOAServiceFrame() (*OAServiceFrame, error) {
 		return nil, err
 	}
 	r.pos++
-	v := &OAServiceFrame{}
+	v := &oaModelManifestResolveArguments{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "ref":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeRef()
+				if err != nil {
+					return nil, err
+				}
+				v.Ref = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
+func (r *reader) decodeOAServiceFrame() (*oaServiceFrame, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaServiceFrame{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -1230,7 +1725,7 @@ func (r *reader) decodeOAServiceFrame() (*OAServiceFrame, error) {
 	return v, nil
 }
 
-func (r *reader) decodeOAServiceReply() (*OAServiceReply, error) {
+func (r *reader) decodeOAServiceReply() (*oaServiceReply, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
 	}
@@ -1238,7 +1733,7 @@ func (r *reader) decodeOAServiceReply() (*OAServiceReply, error) {
 		return nil, err
 	}
 	r.pos++
-	v := &OAServiceReply{}
+	v := &oaServiceReply{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -1329,7 +1824,7 @@ func (r *reader) decodeOAServiceReply() (*OAServiceReply, error) {
 	return v, nil
 }
 
-func (r *reader) decodeOAServiceError() (*OAServiceError, error) {
+func (r *reader) decodeOAServiceError() (*oaServiceError, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
 	}
@@ -1337,7 +1832,7 @@ func (r *reader) decodeOAServiceError() (*OAServiceError, error) {
 		return nil, err
 	}
 	r.pos++
-	v := &OAServiceError{}
+	v := &oaServiceError{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -1398,7 +1893,7 @@ func (r *reader) decodeOAServiceError() (*OAServiceError, error) {
 	return v, nil
 }
 
-func (r *reader) decodeOAModelResolverResolveResult() (*OAModelResolverResolveResult, error) {
+func (r *reader) decodeOAModelResolverResolveResult() (*oaModelResolverResolveResult, error) {
 	if r.at() != '{' {
 		return nil, r.refuse("wrong_type")
 	}
@@ -1406,7 +1901,7 @@ func (r *reader) decodeOAModelResolverResolveResult() (*OAModelResolverResolveRe
 		return nil, err
 	}
 	r.pos++
-	v := &OAModelResolverResolveResult{}
+	v := &oaModelResolverResolveResult{}
 	var seen uint32
 	r.ws()
 	if r.at() != '}' {
@@ -1457,6 +1952,65 @@ func (r *reader) decodeOAModelResolverResolveResult() (*OAModelResolverResolveRe
 	return v, nil
 }
 
+func (r *reader) decodeOAModelManifestResolveResult() (*oaModelManifestResolveResult, error) {
+	if r.at() != '{' {
+		return nil, r.refuse("wrong_type")
+	}
+	if err := r.enter(); err != nil {
+		return nil, err
+	}
+	r.pos++
+	v := &oaModelManifestResolveResult{}
+	var seen uint32
+	r.ws()
+	if r.at() != '}' {
+		for {
+			r.ws()
+			if r.at() != '"' {
+				return nil, r.refuse("malformed")
+			}
+			key, err := r.str()
+			if err != nil {
+				return nil, err
+			}
+			r.ws()
+			if r.at() != ':' {
+				return nil, r.refuse("malformed")
+			}
+			r.pos++
+			r.ws()
+			switch key {
+			case "value":
+				if seen&1 != 0 {
+					return nil, r.refuse("duplicate_field")
+				}
+				seen |= 1
+				x, err := r.decodeManifestResult()
+				if err != nil {
+					return nil, err
+				}
+				v.Value = *x
+			default:
+				return nil, r.refuse("unknown_field")
+			}
+			r.ws()
+			if r.at() != ',' {
+				break
+			}
+			r.pos++
+		}
+	}
+	if r.at() != '}' {
+		return nil, r.refuse("malformed")
+	}
+	r.pos++
+	r.depth--
+	if seen&1 != 1 {
+		return nil, r.refuse("missing_field")
+	}
+	return v, nil
+}
+
 func Decode(in []byte) (*Ref, error) {
 	r := &reader{buf: in}
 	r.ws()
@@ -1471,12 +2025,12 @@ func Decode(in []byte) (*Ref, error) {
 	return v, nil
 }
 
-// Refusals is in the order two of them are chosen between.
+// refusals is in the order two of them are chosen between.
 
-var Refusals = []string{"malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "trailing_bytes"}
+var refusals = []string{"malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "trailing_bytes"}
 
-func RefusalRank(word string) int {
-	for i, w := range Refusals {
+func refusalRank(word string) int {
+	for i, w := range refusals {
 		if w == word {
 			return i
 		}
@@ -1485,11 +2039,11 @@ func RefusalRank(word string) int {
 }
 
 // A transport consumes or copies frames before returning. WriteFrame is one-way.
-type FrameWriter interface{ WriteFrame([]byte) error }
+type FrameWriter interface{ WriteFrame(frame []byte) error }
 type DispatchError string
 
 func (e DispatchError) Error() string { return string(e) }
-func servicePayload(frame []byte) (*OAServiceFrame, error) {
+func servicePayload(frame []byte) (*oaServiceFrame, error) {
 	r := &reader{buf: frame}
 	r.ws()
 	v, err := r.decodeOAServiceFrame()
@@ -1506,11 +2060,26 @@ func servicePayload(frame []byte) (*OAServiceFrame, error) {
 	return v, nil
 }
 
+// ServiceName validates the request envelope and version for routing. The chosen
+// generated dispatcher validates service, method and typed arguments before use.
+func ServiceName(frame []byte) (string, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return "", err
+	}
+	return v.Service, nil
+}
+
 // ExchangeFrame returns the response associated with this call. Correlation,
 // serialization and deadlines belong to the transport, not this codec.
-type FrameExchanger interface{ ExchangeFrame([]byte) ([]byte, error) }
+type FrameExchanger interface {
+	ExchangeFrame(frame []byte) ([]byte, error)
+}
+
+// ServiceError is a reply on the error channel. Code is a ServiceErrorCode
+// constant or a word this package has never heard.
 type ServiceError struct {
-	Code    string
+	Code    ServiceErrorCode
 	Message string
 }
 
@@ -1518,7 +2087,7 @@ func (e *ServiceError) Error() string {
 	if e.Message != "" {
 		return e.Message
 	}
-	return e.Code
+	return string(e.Code)
 }
 func serviceResponse(frame []byte, service, method string) (Raw, error) {
 	r := &reader{buf: frame}
@@ -1551,11 +2120,11 @@ func serviceResponse(frame []byte, service, method string) (Raw, error) {
 		if e.Code == "" {
 			return "", DispatchError("invalid_error")
 		}
-		return "", &ServiceError{Code: e.Code, Message: e.Message}
+		return "", &ServiceError{Code: ServiceErrorCode(e.Code), Message: e.Message}
 	}
 	return v.Payload, nil
 }
-func serviceReply(v *OAServiceFrame, payload Raw, err error) (frame []byte, outErr error) {
+func serviceReply(v *oaServiceFrame, payload Raw, err error) (frame []byte, outErr error) {
 	defer func() {
 		if p := recover(); p != nil {
 			if e, ok := p.(*Refusal); ok {
@@ -1566,13 +2135,13 @@ func serviceReply(v *OAServiceFrame, payload Raw, err error) (frame []byte, outE
 			}
 		}
 	}()
-	reply := OAServiceReply{Version: 1, Service: v.Service, Method: v.Method, Ok: err == nil, Payload: payload}
+	reply := oaServiceReply{Version: 1, Service: v.Service, Method: v.Method, Ok: err == nil, Payload: payload}
 	if err != nil {
-		e := OAServiceError{Code: "handler_error", Message: "handler failed"}
+		e := oaServiceError{Code: string(ServiceErrorCodeHandlerError), Message: "handler failed"}
 		switch x := err.(type) {
 		case *ServiceError:
 			if x.Code != "" {
-				e.Code = x.Code
+				e.Code = string(x.Code)
 			}
 			e.Message = x.Message
 		case DispatchError:
@@ -1594,8 +2163,106 @@ func serviceReply(v *OAServiceFrame, payload Raw, err error) (frame []byte, outE
 	return frame, nil
 }
 
+// EndpointContract is abstraction.facade/endpoint@1, which every dispatcher
+// answers beside its own service.
+const EndpointContract = "abstraction.facade/endpoint@1"
+
+// DescribedService is a dispatcher of any generated package, as
+// abstraction.facade/endpoint@1 Describe lists it.
+type DescribedService interface {
+	DescribeService() (contract string, ready bool, why string)
+}
+
+// DescribeEndpoint answers an abstraction.facade/endpoint@1 Describe frame for
+// an endpoint hosting services, in that order. program and version are the
+// provider's own display name and version, never authority. A frame for another
+// service reads unknown_service.
+func DescribeEndpoint(frame []byte, program, version string, services ...DescribedService) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service != EndpointContract {
+		return serviceReply(v, "", DispatchError("unknown_service"))
+	}
+	if v.Method != "Describe" {
+		return serviceReply(v, "", DispatchError("unknown_method"))
+	}
+	r := &reader{buf: []byte(v.Arguments)}
+	r.ws()
+	empty := false
+	if r.pos < len(r.buf) && r.buf[r.pos] == '{' {
+		r.pos++
+		r.ws()
+		if r.pos < len(r.buf) && r.buf[r.pos] == '}' {
+			r.pos++
+			r.ws()
+			empty = r.pos == len(r.buf)
+		}
+	}
+	if !empty {
+		return serviceReply(v, "", &Refusal{Word: "unknown_field"})
+	}
+	out := append([]byte(nil), "{\"value\":{\"outcome\":\"described\",\"program\":"...)
+	out = esc(out, program)
+	out = append(out, ",\"version\":"...)
+	out = esc(out, version)
+	out = append(out, ",\"services\":["...)
+	for i, service := range services {
+		contract, ready, why := service.DescribeService()
+		readiness := "ready"
+		if !ready {
+			readiness = "not_ready"
+		}
+		if i > 0 {
+			out = append(out, ',')
+		}
+		out = append(out, "{\"contract\":"...)
+		out = esc(out, contract)
+		out = append(out, ",\"readiness\":\""+readiness+"\",\"why\":"...)
+		out = esc(out, why)
+		out = append(out, ",\"guarantees\":[],\"capabilities\":{}}"...)
+	}
+	return serviceReply(v, Raw(append(out, "]}}"...)), nil)
+}
+
+// ServedService is a dispatcher of any generated package that ServeEndpoint
+// routes frames to by its wire name.
+type ServedService interface {
+	DescribedService
+	ServiceContract() string
+}
+
+// ServeEndpoint answers one request-response frame for an endpoint hosting
+// services. A Describe frame lists all of them in the order given; any other
+// frame goes to the service it names. A service that takes only one-way frames
+// reads wrong_mode, and a frame naming none of them reads unknown_service.
+func ServeEndpoint(frame []byte, program, version string, services ...ServedService) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service == EndpointContract {
+		described := make([]DescribedService, len(services))
+		for i, service := range services {
+			described[i] = service
+		}
+		return DescribeEndpoint(frame, program, version, described...)
+	}
+	for _, service := range services {
+		if service.ServiceContract() != v.Service {
+			continue
+		}
+		if exchanger, ok := service.(interface{ ExchangeFrame([]byte) ([]byte, error) }); ok {
+			return exchanger.ExchangeFrame(frame)
+		}
+		return serviceReply(v, "", DispatchError("wrong_mode"))
+	}
+	return serviceReply(v, "", DispatchError("unknown_service"))
+}
+
 type ModelResolver interface {
-	Resolve(Ref) (LookupResult, error)
+	Resolve(ref Ref) (LookupResult, error)
 }
 type ModelResolverTransport interface {
 	FrameExchanger
@@ -1608,7 +2275,7 @@ func NewModelResolverClient(t ModelResolverTransport) *ModelResolverClient {
 
 type ModelResolverDispatcher struct{ Handler ModelResolver }
 
-func (c *ModelResolverClient) Resolve(arg0 Ref) (result LookupResult, err error) {
+func (c *ModelResolverClient) Resolve(ref Ref) (result LookupResult, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			if e, ok := p.(*Refusal); ok {
@@ -1618,8 +2285,8 @@ func (c *ModelResolverClient) Resolve(arg0 Ref) (result LookupResult, err error)
 			}
 		}
 	}()
-	args := OAModelResolverResolveArguments{Ref: arg0}
-	v := OAServiceFrame{Version: 1, Service: "abstraction.model/resolver@1", Method: "Resolve", Arguments: Raw(encOAModelResolverResolveArguments(nil, &args, 1))}
+	args := oaModelResolverResolveArguments{Ref: ref}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.model/resolver@1", Method: "Resolve", Arguments: Raw(encOAModelResolverResolveArguments(nil, &args, 1))}
 	frame := encOAServiceFrame(nil, &v, 0)
 	if _, err = servicePayload(frame); err != nil {
 		return
@@ -1636,7 +2303,7 @@ func (c *ModelResolverClient) Resolve(arg0 Ref) (result LookupResult, err error)
 	}
 	r := &reader{buf: []byte(payload), depth: 1}
 	r.ws()
-	var decoded *OAModelResolverResolveResult
+	var decoded *oaModelResolverResolveResult
 	decoded, err = r.decodeOAModelResolverResolveResult()
 	if err != nil {
 		return
@@ -1650,6 +2317,21 @@ func (c *ModelResolverClient) Resolve(arg0 Ref) (result LookupResult, err error)
 	result = decoded.Value
 	return
 }
+
+// DescribeService is this dispatcher's service as abstraction.facade/endpoint@1 Describe lists it:
+// ready unless its handler implements Ready() (bool, string) and reports otherwise.
+func (d *ModelResolverDispatcher) DescribeService() (contract string, ready bool, why string) {
+	if h, ok := d.Handler.(interface{ Ready() (bool, string) }); ok {
+		if ready, why = h.Ready(); ready {
+			why = ""
+		}
+		return "abstraction.model/resolver@1", ready, why
+	}
+	return "abstraction.model/resolver@1", true, ""
+}
+
+// ServiceContract is the wire name ServeEndpoint routes this dispatcher's frames by.
+func (d *ModelResolverDispatcher) ServiceContract() string { return "abstraction.model/resolver@1" }
 func (d *ModelResolverDispatcher) WriteFrame(frame []byte) error {
 	v, err := servicePayload(frame)
 	if err != nil {
@@ -1669,6 +2351,9 @@ func (d *ModelResolverDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
 	v, err := servicePayload(frame)
 	if err != nil {
 		return nil, err
+	}
+	if v.Service == EndpointContract {
+		return DescribeEndpoint(frame, "", "", d)
 	}
 	if v.Service != "abstraction.model/resolver@1" {
 		return serviceReply(v, "", DispatchError("unknown_service"))
@@ -1691,14 +2376,14 @@ func (d *ModelResolverDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
 		return serviceReply(v, "", DispatchError("unknown_method"))
 	}
 }
-func (d *ModelResolverDispatcher) invokeResolve(args *OAModelResolverResolveArguments) (payload Raw, err error) {
+func (d *ModelResolverDispatcher) invokeResolve(args *oaModelResolverResolveArguments) (payload Raw, err error) {
 	defer func() {
 		if p := recover(); p != nil {
 			payload = ""
 			if _, ok := p.(*Refusal); ok {
-				err = &ServiceError{Code: "invalid_result"}
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 			} else {
-				err = &ServiceError{Code: "handler_error", Message: "handler failed"}
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
 			}
 		}
 	}()
@@ -1707,27 +2392,178 @@ func (d *ModelResolverDispatcher) invokeResolve(args *OAModelResolverResolveArgu
 	if err != nil {
 		return
 	}
-	value := OAModelResolverResolveResult{Value: result}
+	value := oaModelResolverResolveResult{Value: result}
 	payload = Raw(encOAModelResolverResolveResult(nil, &value, 1))
 	r := &reader{buf: []byte(payload), depth: 1}
 	r.ws()
 	if _, e := r.decodeOAModelResolverResolveResult(); e != nil {
 		payload = ""
-		err = &ServiceError{Code: "invalid_result"}
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 		return
 	}
 	r.ws()
 	if r.pos != len(r.buf) {
 		payload = ""
-		err = &ServiceError{Code: "invalid_result"}
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+	}
+	return
+}
+
+type ModelManifest interface {
+	Resolve(ref Ref) (ManifestResult, error)
+}
+type ModelManifestTransport interface {
+	FrameExchanger
+}
+type ModelManifestClient struct{ transport ModelManifestTransport }
+
+func NewModelManifestClient(t ModelManifestTransport) *ModelManifestClient {
+	return &ModelManifestClient{transport: t}
+}
+
+type ModelManifestDispatcher struct{ Handler ModelManifest }
+
+func (c *ModelManifestClient) Resolve(ref Ref) (result ManifestResult, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			if e, ok := p.(*Refusal); ok {
+				err = e
+			} else {
+				panic(p)
+			}
+		}
+	}()
+	args := oaModelManifestResolveArguments{Ref: ref}
+	v := oaServiceFrame{Version: 1, Service: "abstraction.model/manifest@1", Method: "Resolve", Arguments: Raw(encOAModelManifestResolveArguments(nil, &args, 1))}
+	frame := encOAServiceFrame(nil, &v, 0)
+	if _, err = servicePayload(frame); err != nil {
+		return
+	}
+	var response []byte
+	response, err = c.transport.ExchangeFrame(frame)
+	if err != nil {
+		return
+	}
+	var payload Raw
+	payload, err = serviceResponse(response, v.Service, v.Method)
+	if err != nil {
+		return
+	}
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	var decoded *oaModelManifestResolveResult
+	decoded, err = r.decodeOAModelManifestResolveResult()
+	if err != nil {
+		return
+	}
+	_ = decoded
+	r.ws()
+	if r.pos != len(r.buf) {
+		err = r.refuse("trailing_bytes")
+		return
+	}
+	result = decoded.Value
+	return
+}
+
+// DescribeService is this dispatcher's service as abstraction.facade/endpoint@1 Describe lists it:
+// ready unless its handler implements Ready() (bool, string) and reports otherwise.
+func (d *ModelManifestDispatcher) DescribeService() (contract string, ready bool, why string) {
+	if h, ok := d.Handler.(interface{ Ready() (bool, string) }); ok {
+		if ready, why = h.Ready(); ready {
+			why = ""
+		}
+		return "abstraction.model/manifest@1", ready, why
+	}
+	return "abstraction.model/manifest@1", true, ""
+}
+
+// ServiceContract is the wire name ServeEndpoint routes this dispatcher's frames by.
+func (d *ModelManifestDispatcher) ServiceContract() string { return "abstraction.model/manifest@1" }
+func (d *ModelManifestDispatcher) WriteFrame(frame []byte) error {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return err
+	}
+	if v.Service != "abstraction.model/manifest@1" {
+		return DispatchError("unknown_service")
+	}
+	switch v.Method {
+	case "Resolve":
+		return DispatchError("wrong_mode")
+	default:
+		return DispatchError("unknown_method")
+	}
+}
+func (d *ModelManifestDispatcher) ExchangeFrame(frame []byte) ([]byte, error) {
+	v, err := servicePayload(frame)
+	if err != nil {
+		return nil, err
+	}
+	if v.Service == EndpointContract {
+		return DescribeEndpoint(frame, "", "", d)
+	}
+	if v.Service != "abstraction.model/manifest@1" {
+		return serviceReply(v, "", DispatchError("unknown_service"))
+	}
+	switch v.Method {
+	case "Resolve":
+		r := &reader{buf: []byte(v.Arguments), depth: 1}
+		r.ws()
+		args, err := r.decodeOAModelManifestResolveArguments()
+		if err != nil {
+			return serviceReply(v, "", err)
+		}
+		r.ws()
+		if r.pos != len(r.buf) {
+			return serviceReply(v, "", r.refuse("trailing_bytes"))
+		}
+		payload, err := d.invokeResolve(args)
+		return serviceReply(v, payload, err)
+	default:
+		return serviceReply(v, "", DispatchError("unknown_method"))
+	}
+}
+func (d *ModelManifestDispatcher) invokeResolve(args *oaModelManifestResolveArguments) (payload Raw, err error) {
+	defer func() {
+		if p := recover(); p != nil {
+			payload = ""
+			if _, ok := p.(*Refusal); ok {
+				err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+			} else {
+				err = &ServiceError{Code: ServiceErrorCodeHandlerError, Message: "handler failed"}
+			}
+		}
+	}()
+	var result ManifestResult
+	result, err = d.Handler.Resolve(args.Ref)
+	if err != nil {
+		return
+	}
+	value := oaModelManifestResolveResult{Value: result}
+	payload = Raw(encOAModelManifestResolveResult(nil, &value, 1))
+	r := &reader{buf: []byte(payload), depth: 1}
+	r.ws()
+	if _, e := r.decodeOAModelManifestResolveResult(); e != nil {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
+		return
+	}
+	r.ws()
+	if r.pos != len(r.buf) {
+		payload = ""
+		err = &ServiceError{Code: ServiceErrorCodeInvalidResult}
 	}
 	return
 }
 
 func(r *reader)depthLimit()int{if r.limit>0 && r.limit<depthLimit{return r.limit};return depthLimit}
 
-func encOAImported0(out []byte,v *OAImported0,depth int)(result []byte){defer func(){if p:=recover();p!=nil{if e,ok:=p.(*oa_dependency_request.Refusal);ok{panic(&Refusal{Word:e.Word,Offset:e.Offset})};panic(p)}}();return append(out,oa_dependency_request.EncodeRequestAt(v,depth)...)}
-func(r *reader)decodeOAImported0()(*OAImported0,error){v,n,e:=oa_dependency_request.DecodeRequestAt(r.buf[r.pos:],r.depth,r.depthLimit());if x,ok:=e.(*oa_dependency_request.Refusal);ok{e=&Refusal{Word:x.Word,Offset:r.pos+x.Offset}};r.pos+=n;return v,e}
+func encOAImported0(out []byte,v *oaImported0,depth int)(result []byte){defer func(){if p:=recover();p!=nil{if e,ok:=p.(*oa_dependency_request.Refusal);ok{panic(&Refusal{Word:e.Word,Offset:e.Offset})};panic(p)}}();return append(out,oa_dependency_request.EncodeRequestAt(v,depth)...)}
+func(r *reader)decodeOAImported0()(*oaImported0,error){v,n,e:=oa_dependency_request.DecodeRequestAt(r.buf[r.pos:],r.depth,r.depthLimit());if x,ok:=e.(*oa_dependency_request.Refusal);ok{e=&Refusal{Word:x.Word,Offset:r.pos+x.Offset}};r.pos+=n;return v,e}
+
+func encOAImported1(out []byte,v *oaImported1,depth int)(result []byte){defer func(){if p:=recover();p!=nil{if e,ok:=p.(*oa_dependency_content.Refusal);ok{panic(&Refusal{Word:e.Word,Offset:e.Offset})};panic(p)}}();return append(out,oa_dependency_content.EncodeManifestAt(v,depth)...)}
+func(r *reader)decodeOAImported1()(*oaImported1,error){v,n,e:=oa_dependency_content.DecodeManifestAt(r.buf[r.pos:],r.depth,r.depthLimit());if x,ok:=e.(*oa_dependency_content.Refusal);ok{e=&Refusal{Word:x.Word,Offset:r.pos+x.Offset}};r.pos+=n;return v,e}
 
 func DecodeRefAt(in []byte,depth,limit int)(*Ref,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeRef();return v,r.pos,e}
 func EncodeRefAt(v *Ref,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encRef(nil,v,depth);if _,_,e:=DecodeRefAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
@@ -1738,3 +2574,8 @@ func DecodeLookupResultAt(in []byte,depth,limit int)(*LookupResult,int,error){r:
 func EncodeLookupResultAt(v *LookupResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encLookupResult(nil,v,depth);if _,_,e:=DecodeLookupResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
 func EncodeLookupResult(v *LookupResult)[]byte{return append(EncodeLookupResultAt(v,0),"\n"...)}
 func DecodeLookupResult(in []byte)(*LookupResult,error){v,n,e:=DecodeLookupResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}
+
+func DecodeManifestResultAt(in []byte,depth,limit int)(*ManifestResult,int,error){r:=&reader{buf:in,depth:depth,limit:limit};if depth<0||limit<1{return nil,0,r.refuse("depth_exceeded")};r.ws();v,e:=r.decodeManifestResult();return v,r.pos,e}
+func EncodeManifestResultAt(v *ManifestResult,depth int)[]byte{if depth<0||depth>=depthLimit{panic(&Refusal{Word:"depth_exceeded"})};out:=encManifestResult(nil,v,depth);if _,_,e:=DecodeManifestResultAt(out,depth,depthLimit);e!=nil{panic(e)};return out}
+func EncodeManifestResult(v *ManifestResult)[]byte{return append(EncodeManifestResultAt(v,0),"\n"...)}
+func DecodeManifestResult(in []byte)(*ManifestResult,error){v,n,e:=DecodeManifestResultAt(in,0,depthLimit);if e!=nil{return nil,e};r:=&reader{buf:in,pos:n};r.ws();if r.pos!=len(in){return nil,r.refuse("trailing_bytes")};return v,nil}

@@ -8,8 +8,8 @@ a local filesystem path. The service performs lookup only and submits no work.
 `LookupResult.request` is present exactly when `outcome` is `resolved`. The request
 preserves the complete artifact identity, size and ordered source list. Its
 nonempty digest must be SHA-256 with 32 hexadecimal bytes; size zero remains
-unknown and negative size refuses. Sources must satisfy the existing portable
-anonymous HTTP(S) request validator.
+unknown and negative size refuses. Sources must satisfy the portable HTTP(S)
+request validator.
 
 | Outcome | Meaning |
 | --- | --- |
@@ -19,13 +19,26 @@ anonymous HTTP(S) request validator.
 | unsupported_mapping | The existing native mapping cannot be represented completely by the portable request. No partial projection is returned. |
 | forbidden | Bound caller identity does not authorize this service account's lookup. |
 
-A source carrying attributes, credential references, headers or nonzero priority
-refuses as unsupported. A local/file source, private Sink or existing handoff
-Request identity also refuses. A service never silently removes such a source
-because another source is portable. Explicit native adapters retain those uses.
-HTTP URL user information refuses through the existing execution validator.
+A source carrying attributes, headers or nonzero priority refuses as
+unsupported, except the credential name of the Ref itself. A local/file source,
+private Sink or existing handoff Request identity also refuses. A service never
+silently removes such a source because another source is portable. Explicit
+native adapters retain those uses. HTTP URL user information refuses through the
+existing execution validator.
 
-The five Ref fields are passed directly to the selected resolver. HF lookup
+**MODEL-C1.** A `Ref` naming a credential is resolved with that credential
+applied to the registry metadata requests, through
+`abstraction.credentials/applier@1` with consumer
+`abstraction.model/resolver@1` and the Program-proven caller as subject. Every
+source of the resolved request carries the same `credential` name and no header
+or secret. An applier refusal (`unknown`, `expired`, `revoked`, `lost`,
+`not_permitted`, `target_refused`, `consumer_refused`, `unsupported_kind`,
+`invalid`, `forbidden`) reads `unsupported_mapping`; an applier that cannot
+answer reads `unavailable`. A host configured without an applier refuses such a
+Ref as `unsupported_mapping` before any registry request. A redirect to another
+host is sent without the applied headers.
+
+The six Ref fields are passed directly to the selected resolver. HF lookup
 rejects simultaneous File and Quant and revision path/query delimiters; Ollama
 rejects File and Quant because that resolver does not use them. Custom registry
 providers receive every field without a string round trip.

@@ -1,11 +1,15 @@
-# model — pull weights without losing them, and without fetching what you already have
+# abstraction-model
 
-Service adopters use `go/client.New(endpoint).ResolveContext(ctx, ref)` after
-selecting an `abstraction.model/resolver@1` service. It returns a typed portable
-download request, or an explicit lookup outcome. [Service contract](CONTRACT.md)
-describes unsupported native mappings, waiting and authorization. The existing
-`modelget`, Registry and local-store adapters below remain explicitly selected
-native workflows.
+Turn a model name from Hugging Face, Ollama, LM Studio or another registry into
+one exact set of verifiable bytes before downloading it. The resolver understands
+revisions, published digests, quantization and aliases for the same model family.
+Download and job services move the selected bytes and keep the work running.
+
+Applications select `abstraction.model/resolver@1` through the facade and call
+the typed resolver. The result is a portable download request or an explicit
+lookup outcome. [CONTRACT.md](CONTRACT.md) describes waiting, authorization and
+unsupported native mappings. `modelget`, Registry and local-store adapters
+below are explicitly selected native workflows.
 
 
 ```
@@ -66,54 +70,15 @@ machine this was written against contains zero byte-identical duplicates.
 The 42 identifiers in [`testdata/identifiers.tsv`](testdata/identifiers.tsv)
 were read from the four running services, and Go and Python are held to them
 byte-for-byte by `scripts/identity-conformance.sh`. Python is in
-[`python/`](python/README.md) because the consumers are a broker and a ComfyUI
-node: what to install, what to import and one example that runs are on that page.
+[`python/`](python/README.md) because a consumer is a ComfyUI node: what to
+install, what to import and one example that runs are on that page.
 
 ## One copy, two applications
 
-```
-$ python python/resident.py            # a broker and a window on :11800
-$ powershell -File python/install.ps1  # the same, at every logon
-```
-
-Point both applications at `http://127.0.0.1:11800/v1` and the second one does
-not load a second copy. The broker polls Lemonade, LM Studio and Ollama, groups
-what each of them holds by `family`, and on a request either hands it to a host
-already holding that family or picks a host that has the weights on disk and
-loads it there. Placement is serialised per family, so two applications arriving
-together wait on one load instead of starting two.
-
-Measured once on one consumer laptop: two applications wanting one 35B model
-cost close to twice the memory in two copies as in one, both answered faster,
-and warm, the second application added **zero bytes**. **That transcript is not
-published**, so treat those as a claim rather than evidence. What is published,
-each with the script that produced it and the state of the machine that ran it,
-is [`docs/results/`](https://github.com/openabstractions/abstractions/tree/main/docs/results).
-
-The window at `/` names what is resident, who holds the GPU, and every routing
-decision. `GET /findings` emits the same document in `polite-monitor`'s shape.
-**The panel that matters is "loaded more than once"**: identity is a judgement
-about names, it will be wrong eventually, and when it is wrong the machine
-quietly holds two copies. That failure now has a name on a screen rather than
-only a number in a file — and a remedy. Every resident copy is a `resident` job
-in `~/.abstraction`, held by the broker on that host's behalf; a doubled family
-gets the copy routing would not use **recalled**, and the broker honours its own
-recall by unloading it (Lemonade `/api/v1/unload`, Ollama `keep_alive: 0`,
-LM Studio `/api/v1/models/unload`). A host that will not unload keeps its copy
-and loses its traffic: the lease lapses, the copy is evicted from routing, and
-the host's own idle timeout finishes the job. The same recall is open to anyone
-holding the store — `jobctl recall <id> --epoch N --reason "make room"` unloads a
-model within one poll. Contract in
-[`abstraction-job`](https://github.com/openabstractions/abstraction-job).
-
-When it is wrong in the direction of splitting, `~\.abstraction\model-merges`
-overrides it without a code change — one `wrong-key canonical-key` per line,
-re-read on every poll. There is deliberately no override in the other direction:
-a person can say two things are one model, and nothing can make the parser
-answer a request with weights it was not asked for.
-
-`adopters/comfyui-resident/` is a ComfyUI node that asks the broker instead of
-loading anything; copy it into `custom_nodes/` and restart.
+The residency broker, `python/resident.py`, routed two applications to one
+loaded copy and kept each resident copy as a job in the legacy file store. It
+was removed with the Python file store on 2026-09-15; the parent project's
+`docs/REMOVED.md` records it.
 
 ## What is already here, by family
 

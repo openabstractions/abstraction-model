@@ -9,6 +9,7 @@ import (
 	model "github.com/openabstractions/abstraction-model/go"
 	wire "github.com/openabstractions/abstraction-model/go/abstraction/model/api"
 	"os/user"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -28,6 +29,7 @@ type Host struct {
 	workers   sync.WaitGroup
 	slots     chan struct{}
 	policy    LookupPolicy
+	apply     CredentialApplier
 	OnError   func(error)
 	// Assign before Serve. Called when admission stops, before calls drain.
 	OnStopped func()
@@ -55,6 +57,29 @@ func (h *Host) EnablePolicy(policy LookupPolicy) error {
 		return errors.New("model service: explicit policy required")
 	}
 	h.policy = policy
+	return nil
+}
+
+// CredentialApplier applies a named credential for the caller this service
+// bound, to one registry request to host, through
+// abstraction.credentials/applier@1 with consumer abstraction.model/resolver@1.
+// account and program are the Program-proven receiving subject. It returns the
+// headers for that request or a *download.CredentialError, honors ctx and is
+// safe for concurrent calls.
+type CredentialApplier func(ctx context.Context, account, program, name, host string) (map[string]string, error)
+
+// EnableCredentials lets a Ref name a credential. Configure it before Serve.
+// Without it every Ref naming a credential reads unsupported_mapping.
+func (h *Host) EnableCredentials(apply CredentialApplier) error {
+	h.lifecycle.Lock()
+	defer h.lifecycle.Unlock()
+	if h.serving || h.ctx.Err() != nil {
+		return errors.New("model service: configure credentials before Serve")
+	}
+	if apply == nil {
+		return errors.New("model service: explicit credential applier required")
+	}
+	h.apply = apply
 	return nil
 }
 
@@ -167,7 +192,7 @@ func (r *receiver) Resolve(ref wire.Ref) (wire.LookupResult, error) {
 		return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
 	}
 	r.host.lifecycle.Lock()
-	policy := r.host.policy
+	policy, apply := r.host.policy, r.host.apply
 	r.host.lifecycle.Unlock()
 	if policy != nil {
 		peer, err := r.call.Peer()
@@ -182,5 +207,38 @@ func (r *receiver) Resolve(ref wire.Ref) (wire.LookupResult, error) {
 			return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
 		}
 	}
-	return lookup(r.ctx, r.host.registry, ref), nil
+	ctx := r.ctx
+	if ref.Credential != "" && apply != nil {
+		account, program, ok := r.subject()
+		if !ok {
+			return wire.LookupResult{Outcome: wire.LookupOutcomeForbidden}, nil
+		}
+		ctx = model.WithCredentials(ctx, func(ctx context.Context, name, host string) (map[string]string, error) {
+			return apply(ctx, account, program, name, host)
+		})
+	}
+	return lookup(ctx, r.host.registry, ref), nil
+}
+
+// subject is the Program-proven account and executable of the rechecked peer.
+func (r *receiver) subject() (string, string, bool) {
+	p, e := r.call.Peer()
+	if e != nil || r.call.Recheck() != nil {
+		return "", "", false
+	}
+	u, e := p.User.AtLeast(listen.Program.User)
+	if e != nil {
+		return "", "", false
+	}
+	account := ""
+	if u.Kind == "windows" {
+		account = u.SID
+	} else if u.Kind == "posix" && u.UID >= 0 {
+		account = strconv.Itoa(u.UID)
+	}
+	program, e := p.Path.AtLeast(listen.Program.Path)
+	if e != nil || account == "" || account != r.host.owner || !filepath.IsAbs(program) {
+		return "", "", false
+	}
+	return account, filepath.Clean(program), true
 }

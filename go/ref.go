@@ -24,6 +24,9 @@ type Ref struct {
 	Revision string // git revision for hf, tag for ollama; empty means default
 	Quant    string // "Q4_K_M"; hf only; empty means any
 	File     string // an explicit filename, when the caller knows it
+	// Credential names a credential the resolving service applies to its
+	// registry requests and puts on every source; a name, never a secret.
+	Credential string
 }
 
 func (r Ref) String() string {

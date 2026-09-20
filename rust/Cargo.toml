@@ -9,3 +9,4 @@ path = "../rs/abstraction/model/api/rec.rs"
 [dependencies]
 abstraction-frame = { path = "../../abstraction-identity/rust-frame" }
 abstraction-download-request-api = { path = "../../abstraction-download/rust" }
+abstraction-storage-content-api = { path = "../../abstraction-storage/rust" }

@@ -7,7 +7,7 @@ name = "abstraction-model-protocol"
 version = "0.0.0"
 description = "Generated OpenAbstractions model lookup protocol types and service clients"
 requires-python = ">=3.10"
-dependencies = ["abstraction-download-request-protocol==0.0.0"]
+dependencies = ["abstraction-download-request-protocol==0.0.0", "abstraction-storage-content==0.0.0"]
 
 [tool.setuptools.packages.find]
 where = ["."]

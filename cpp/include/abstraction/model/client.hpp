@@ -43,19 +43,19 @@ class Client : public api::ModelResolver {
 public:
     explicit Client(std::string endpoint) : endpoint_(std::move(endpoint)) {}
     Client(std::string endpoint, ipc::Deadline deadline) : endpoint_(std::move(endpoint)), deadline_(deadline) {}
-    Client WithDeadline(ipc::Deadline deadline) const {
+    Client with_deadline(ipc::Deadline deadline) const {
         auto scoped = *this; scoped.deadline_ = deadline; return scoped;
     }
-    Client WithServerExpectation(std::optional<ipc::ServerExpectation> server) const {auto copy=*this;copy.server_=std::move(server);return copy;}
- Client WithCancellation(ipc::CancellationToken cancellation) const {
+    Client with_server_expectation(std::optional<ipc::ServerExpectation> server) const {auto copy=*this;copy.server_=std::move(server);return copy;}
+ Client with_cancellation(ipc::CancellationToken cancellation) const {
         auto scoped = *this; scoped.cancellation_ = std::move(cancellation); return scoped;
     }
-    api::LookupResult Resolve(const api::Ref& ref) override {
+    api::LookupResult resolve(const api::Ref& ref) override {
         auto transport = deadline_ ? ipc::FrameTransport(endpoint_, *deadline_, 1u<<20)
                                    : ipc::FrameTransport(endpoint_, 5000, 1u<<20);
-        transport = transport.WithCancellation(cancellation_).WithServerExpectation(server_);
+        transport = transport.with_cancellation(cancellation_).with_server_expectation(server_);
         api::ModelResolverClient<ipc::FrameTransport> client(transport);
-        auto result = client.Resolve(ref);
+        auto result = client.resolve(ref);
         detail::validate(result);
         return result;
     }

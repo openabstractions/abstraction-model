@@ -13,12 +13,14 @@
     "url": "https://github.com/openabstractions/abstraction-model/issues"
   },
   "type": "module",
-  "exports": "./js/abstraction/model/api/rec.mjs",
+  "types": "./js/abstraction/model/api/index.d.mts",
+  "exports": {".": {"types": "./js/abstraction/model/api/index.d.mts", "default": "./js/abstraction/model/api/index.mjs"}},
   "files": [
     "js"
   ],
   "dependencies": {
-    "@openabstractions/download-request": "0.0.0"
+    "@openabstractions/download-request": "0.0.0",
+    "@openabstractions/storage-content": "0.0.0"
   },
   "engines": {
     "node": ">=18"

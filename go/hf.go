@@ -77,10 +77,15 @@ func (h HF) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 	if err != nil {
 		return download.Spec{}, err
 	}
-	if h.Token != "" {
+	client := h.client()
+	if ref.Credential != "" {
+		if client, err = applyCredential(ctx, client, req, ref.Credential); err != nil {
+			return download.Spec{}, err
+		}
+	} else if h.Token != "" {
 		req.Header.Set("Authorization", "Bearer "+h.Token)
 	}
-	resp, err := h.client().Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return download.Spec{}, err
 	}
@@ -125,7 +130,7 @@ func (h HF) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 		Sources: []download.Source{{
 			Scheme:  "https",
 			Locator: fmt.Sprintf("%s/%s/resolve/%s/%s", h.base(), ref.Repo, pinned, file.Rfilename),
-			Attrs:   hfAttrs(h.Token),
+			Attrs:   hfAttrs(h.Token, ref.Credential),
 		}},
 	}, nil
 }
@@ -142,7 +147,10 @@ func (h HF) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 //
 // The download layer resolves the name at the moment of the request. See
 // download/credentials.go.
-func hfAttrs(token string) map[string]string {
+func hfAttrs(token, credential string) map[string]string {
+	if credential != "" {
+		return map[string]string{download.CredentialAttr: credential}
+	}
 	if token == "" {
 		return nil
 	}

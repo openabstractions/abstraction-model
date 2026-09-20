@@ -1,4 +1,5 @@
 @PACKAGE_INIT@
 include(CMakeFindDependencyMacro)
 find_dependency(abstraction_download_request CONFIG)
+find_dependency(abstraction_storage_content CONFIG)
 include("${CMAKE_CURRENT_LIST_DIR}/abstraction_model_apiTargets.cmake")

@@ -121,7 +121,7 @@ func TestUnavailableAndInvalidAreObservedResults(t *testing.T) {
 	_, c := liveHost(t, model.NewServiceRegistry(), false)
 	for _, tc := range []struct {
 		ref     wire.Ref
-		outcome string
+		outcome wire.LookupOutcome
 	}{{wire.Ref{}, wire.LookupOutcomeInvalid}, {wire.Ref{Registry: "missing", Repo: "x"}, wire.LookupOutcomeUnavailable}} {
 		r, e := c.Resolve(tc.ref)
 		if e != nil || r.Outcome != tc.outcome || r.Request != nil {
