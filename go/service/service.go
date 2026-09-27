@@ -95,12 +95,12 @@ func Listen(endpoint string, registry *model.Registry) (*Host, error) {
 	if owner.Uid == "" {
 		return nil, errors.New("model: service principal unavailable")
 	}
-	l, e := listen.Listen(endpoint)
+	l, e := listen.ListenFramed(endpoint, listen.Program)
 	if e != nil {
 		return nil, e
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Host{listener: l, owner: owner.Uid, registry: registry, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
+	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, registry: registry, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
 }
 func (h *Host) Close() error {
 	var e error

@@ -543,6 +543,17 @@ class _Reader:
     def string(self):
         if self.at() != _QUOTE:
             raise self.refuse("wrong_type")
+        # Most wire keys and values contain no escapes. Search and validate
+        # those bytes in C; retain the bytewise path for escapes and refusals.
+        end = self.buf.find(b'"', self.pos + 1)
+        if end >= 0:
+            chunk = self.buf[self.pos + 1:end]
+            if b"\\" not in chunk and (not chunk or min(chunk) >= 0x20):
+                self.pos = end + 1
+                try:
+                    return chunk.decode("utf-8")
+                except UnicodeDecodeError:
+                    raise self.refuse("bad_string") from None
         self.pos += 1
         out = bytearray()
         while True:
@@ -1457,9 +1468,14 @@ class ModelManifest:
     def resolve(self, ref: Ref) -> ManifestResult:
         """A registry reference resolves to one manifest of kind
         abstraction.model/descriptor@1 with entries by role and a descriptor
-        with family, quant, format, architecture, size_label, finetune, base and
-        source. Portable download requests per entry come from resolver@1. No
-        bytes move."""
+        with family, quant, format, architecture, size_label, finetune, base,
+        source and role. Portable download requests per entry come from
+        resolver@1. No bytes move. role marks a component (MODEL-C3): weights
+        for the servable artifact, or the closed vocabulary a storage inventory
+        source's own classifier answers (projector, vae) for a part of one. A
+        component's base then names the family it belongs to when its own name
+        derives one, in place of base's other meaning of the model a weights
+        file was fine-tuned from."""
         raise NotImplementedError
 
 

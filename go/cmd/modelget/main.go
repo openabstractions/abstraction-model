@@ -24,7 +24,7 @@ import (
 	"github.com/openabstractions/abstraction-download/go"
 	job "github.com/openabstractions/abstraction-job/go"
 	"github.com/openabstractions/abstraction-model/go"
-	"github.com/openabstractions/abstraction-model/go/identity"
+	"github.com/openabstractions/abstraction-model/identity"
 )
 
 func main() {
@@ -46,8 +46,6 @@ func main() {
 		cmdWhere(ctx, os.Args[2:])
 	case "identify":
 		cmdIdentify(os.Args[2:])
-	case "inventory":
-		cmdInventory(os.Args[2:])
 	case "-h", "--help", "help":
 		usage()
 	default:
@@ -64,7 +62,6 @@ func usage() {
   modelget resume                   pick up everything interrupted
   modelget where <ref>              resolve a ref: digest, size, where it can be had
   modelget identify <name>...       what family is this string a host gave me
-  modelget inventory                every model on this machine, grouped by family
 
 refs:
   hf://org/repo                     the only .gguf in the repo
@@ -78,11 +75,11 @@ env:
   ABSTRACTION_NAS_STORE  a job store on a share, watched by a jobd elsewhere
   ABSTRACTION_CRED_HF    bearer token for gated HuggingFace repos
   HF_TOKEN               accepted as an alias for the above
-  ABSTRACTION_MODEL_ROOTS  model stores with no fixed location, "name=dir" and
-                           listed the way PATH is. Without it "inventory" sees
-                           only Ollama, the HuggingFace cache and LM Studio —
-                           84 GiB of the machine it was measured on sat in six
-                           stores that have to be named.
+
+What this machine already holds is the storage inventory's answer, not this
+command's: abstraction.storage/inventory@1, composed by the runtime over every
+declared source. "inventoryd snapshot --json" prints one source's reading of
+the stores on this machine, with the model descriptor each store publishes.
 
 Where a download actually happens is a property of the machine, not an argument.
 If a system downloader is running (jobd) it takes the work and decides for
@@ -498,49 +495,4 @@ func cmdIdentify(args []string) {
 			fmt.Println("\ndifferent models.")
 		}
 	}
-}
-
-func cmdInventory(args []string) {
-	need(flag.NewFlagSet("inventory", flag.ContinueOnError), args)
-	var files, dup int
-	var total, waste int64
-	for _, g := range model.Inventory() {
-		if g.Family == "" {
-			continue
-		}
-		fmt.Println(g.Family)
-		var biggest int64
-		for _, c := range g.Copies {
-			q := c.Quant
-			if q == "" {
-				q = "-"
-			}
-			d := c.Digest
-			if d == "" {
-				d = "no published digest"
-			} else {
-				d = d[:14] + "…"
-			}
-			fmt.Printf("  %-12s %8.1f GB  %-11s %-22s %s\n", c.Store, float64(c.Size)/1e9, q, d, c.Name)
-			files++
-			total += c.Size
-			if c.Size > biggest {
-				biggest = c.Size
-			}
-		}
-		if len(g.Copies) > 1 {
-			dup++
-			waste += total0(g.Copies) - biggest
-		}
-	}
-	fmt.Printf("\n%d files, %.1f GB. %d families held more than once, %.1f GB of it.\n",
-		files, float64(total)/1e9, dup, float64(waste)/1e9)
-}
-
-func total0(cs []model.Copy) int64 {
-	var n int64
-	for _, c := range cs {
-		n += c.Size
-	}
-	return n
 }

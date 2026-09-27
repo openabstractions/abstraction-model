@@ -24,8 +24,9 @@ func WithCredentials(ctx context.Context, apply CredentialHeaders) context.Conte
 	return context.WithValue(ctx, credentialsKey{}, apply)
 }
 
-// applyCredential sets the named credential's headers on req, once, and makes
-// the client drop them on a redirect to another host.
+// applyCredential sets the named credential's headers on one registry request.
+// A redirect needs a new target decision, so this client stops before sending
+// another request with headers approved for the original target.
 func applyCredential(ctx context.Context, client *http.Client, req *http.Request, name string) (*http.Client, error) {
 	apply, _ := ctx.Value(credentialsKey{}).(CredentialHeaders)
 	if apply == nil {
@@ -43,22 +44,8 @@ func applyCredential(ctx context.Context, client *http.Client, req *http.Request
 		req.Header.Set(k, v)
 	}
 	bound := *client
-	next := bound.CheckRedirect
-	origin := strings.ToLower(req.URL.Hostname())
-	bound.CheckRedirect = func(to *http.Request, via []*http.Request) error {
-		host := strings.ToLower(to.URL.Hostname())
-		if host != origin && !strings.HasSuffix(host, "."+origin) {
-			for k := range headers {
-				to.Header.Del(k)
-			}
-		}
-		if next != nil {
-			return next(to, via)
-		}
-		if len(via) >= 10 {
-			return errors.New("stopped after 10 redirects")
-		}
-		return nil
+	bound.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
 	}
 	return &bound, nil
 }

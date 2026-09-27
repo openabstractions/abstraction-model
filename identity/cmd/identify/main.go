@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/openabstractions/abstraction-model/go/identity"
+	"github.com/openabstractions/abstraction-model/identity"
 )
 
 func main() {

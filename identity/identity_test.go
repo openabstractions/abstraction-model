@@ -8,7 +8,7 @@ import (
 
 func fixture(t *testing.T) [][]string {
 	t.Helper()
-	b, err := os.ReadFile("../../testdata/identifiers.tsv")
+	b, err := os.ReadFile("../testdata/identifiers.tsv")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,32 @@ func TestNothingUsefulSurvivesAnEmptyName(t *testing.T) {
 	for _, s := range []string{"", "   ", "gguf", "hf://"} {
 		if got := Family(s); got != "" {
 			t.Errorf("%q -> %q, want empty", s, got)
+		}
+	}
+}
+
+func TestComponentReadsTheBaseAndRole(t *testing.T) {
+	for _, tt := range []struct {
+		name, base, role string
+	}{
+		{"mmproj-Qwen3.6-VL-dev.gguf", "qwen3.6-vl-dev", "mmproj"},
+		{"Qwen3.6-VL-dev-mmproj.gguf", "qwen3.6-vl-dev", "mmproj"},
+		{"wan2.2-vae.safetensors", "wan2.2", "vae"},
+	} {
+		base, role := Component(tt.name)
+		if base != tt.base || role != tt.role {
+			t.Errorf("Component(%q) = %q, %q; want %q, %q", tt.name, base, role, tt.base, tt.role)
+		}
+	}
+}
+
+func TestComponentIsEmptyWithoutExactlyOneRole(t *testing.T) {
+	for _, s := range []string{
+		"Qwen3.6-VL-dev.gguf",         // no role token
+		"Qwen3.6-VL-dev-mmproj-vae.gguf", // two role tokens: ambiguous
+	} {
+		if base, role := Component(s); base != "" || role != "" {
+			t.Errorf("Component(%q) = %q, %q; want empty, empty", s, base, role)
 		}
 	}
 }

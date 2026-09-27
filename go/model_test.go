@@ -458,31 +458,3 @@ func TestTokenNeverReachesTheRecord(t *testing.T) {
 		t.Fatal("the record does not name the credential, so nothing could resolve it later")
 	}
 }
-
-// TestNamedRootsKeepTheirStore is the attribution the inventory exists for. Nine
-// stores on the measured machine, six of them nameable only through this
-// variable; reported as "extra" they cannot answer which tool breaks if a file
-// moves.
-func TestNamedRootsKeepTheirStore(t *testing.T) {
-	comfy := t.TempDir()
-	anon := t.TempDir()
-	os.WriteFile(filepath.Join(comfy, "wan2.2_ti2v_5B_fp16.safetensors"), []byte("w"), 0o644)
-	os.WriteFile(filepath.Join(anon, "SmolLM2-135M-Instruct-Q4_K_M.gguf"), []byte("w"), 0o644)
-
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("USERPROFILE", t.TempDir())
-	t.Setenv("ABSTRACTION_MODEL_ROOTS", strings.Join([]string{"comfyui=" + comfy, anon}, string(filepath.ListSeparator)))
-
-	got := map[string]string{}
-	for _, g := range Inventory() {
-		for _, c := range g.Copies {
-			got[filepath.Base(c.Path)] = c.Store
-		}
-	}
-	if got["wan2.2_ti2v_5B_fp16.safetensors"] != "comfyui" {
-		t.Errorf("named root lost its store: %q", got["wan2.2_ti2v_5B_fp16.safetensors"])
-	}
-	if got["SmolLM2-135M-Instruct-Q4_K_M.gguf"] != "extra" {
-		t.Errorf("bare root should stay extra: %q", got["SmolLM2-135M-Instruct-Q4_K_M.gguf"])
-	}
-}

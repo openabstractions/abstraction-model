@@ -6,9 +6,8 @@
 <link rel="stylesheet" href="style.css">
 
 <main>
-<nav class="site"><a class="name" href="index.html">Open Abstractions</a>
-<a href="index.html">Overview</a> <a href="cases.html">Cases</a> <a href="reference.html">Reference</a> <a href="evidence.html">Evidence</a> <a href="coverage.html">Coverage</a> <a href="adopt.html">Adopt</a>
-<a class="right" href="https://github.com/openabstractions">github.com/openabstractions</a></nav>
+<nav class="site" aria-label="Primary navigation"><a class="name" href="index.html">Open Abstractions</a>
+<a href="adopt.html">Adopt</a><a href="cases.html">Cases</a><span class="nav-devs-label">for developers</span><a href="reference.html">Reference</a><a href="coverage.html">Coverage</a><a href="catalogue.html">Catalogue</a><a href="https://github.com/openabstractions">GitHub</a></nav>
 
 
 <h1>Schema</h1>
@@ -31,7 +30,7 @@
 <p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. The selected generated dispatcher validates the method and typed arguments; the selector does not authorize callers or interpret method payloads.</p>
 <p>Frames carry version, service, method and typed arguments. Transport owns framing, associated exchanges, deadlines and connections. Unknown version/service/method and malformed arguments are rejected before invoking a handler. One-way WriteFrame success means local submission, not remote acceptance or persistence.</p>
 <p>Request-response methods use ExchangeFrame. Replies carry version, service, method, ok and payload; success payload contains typed value (or an empty object for void). Error payload contains nonempty code and message, which may be empty. ServiceError preserves unknown codes. Unexpected handler failures become handler_error without private details; invalid results become invalid_result. Clients validate reply identity and result before exposing it. A malformed frame or transport failure remains a local error; the transport must associate each response with its exchange. C++ dispatchers are pure protocol bindings, not listening servers.</p>
-<p>A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base and source. Portable download requests per entry come from resolver@1. No bytes move.</p>
+<p>A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a component (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source&#39;s own classifier answers (projector, vae) for a part of one. A component&#39;s base then names the family it belongs to when its own name derives one, in place of base&#39;s other meaning of the model a weights file was fine-tuned from.</p>
 <h3><code>Resolve</code></h3><p><code>request-response</code> <code>ManifestResult</code></p><ul>
 <li>Argument 1: <code>Ref</code> <code>ref</code> (required, including zero/false/empty)</li>
 </ul>

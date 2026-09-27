@@ -46,7 +46,7 @@ export interface ManifestResult {
 /** Same-account identity-bound registry resolution to a storage manifest. The model service owns no bytes and walks no directories; stores and holders belong to the storage inventory. */
 export declare class ModelManifestClient {
   constructor(transport: FrameTransport);
-  /** A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base and source. Portable download requests per entry come from resolver@1. No bytes move. */
+  /** A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a component (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source's own classifier answers (projector, vae) for a part of one. A component's base then names the family it belongs to when its own name derives one, in place of base's other meaning of the model a weights file was fine-tuned from. */
   resolve(ref: Ref): Promise<ManifestResult>;
 }
 

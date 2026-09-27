@@ -157,7 +157,20 @@ func quantRun(raw []string, i int) int {
 }
 
 func assemble(toks []string, quant string) Name {
-	var kept, roles []string
+	baseParts, roles := splitParts(toks)
+	if len(baseParts) == 0 {
+		return Name{Family: strings.Join(roles, "-"), Quant: quant}
+	}
+	parts := append(append([]string{}, baseParts...), roles...)
+	return Name{Family: strings.Join(parts, "-"), Quant: quant}
+}
+
+// splitParts separates toks into the base name's own parts (base, params,
+// variants, packaging dropped) and the distinct role tokens found, in the
+// order assemble already joined them in: base first, roles last. Component
+// reads the same split to answer a part's base without its role suffix.
+func splitParts(toks []string) (baseParts, roles []string) {
+	var kept []string
 	isRole := map[string]bool{}
 	for _, t := range toks {
 		switch {
@@ -172,7 +185,7 @@ func assemble(toks []string, quant string) Name {
 		}
 	}
 	if len(kept) == 0 {
-		return Name{Family: strings.Join(roles, "-"), Quant: quant}
+		return nil, roles
 	}
 	base, rest := kept[0], kept[1:]
 	seen := map[string]bool{base: true}
@@ -193,8 +206,27 @@ func assemble(toks []string, quant string) Name {
 			variants = append(variants, t)
 		}
 	}
-	parts := append(append(append([]string{base}, params...), variants...), roles...)
-	return Name{Family: strings.Join(parts, "-"), Quant: quant}
+	baseParts = append(append([]string{base}, params...), variants...)
+	return baseParts, roles
+}
+
+// Component reports the family a role-bearing artifact's own name states it
+// is a part of, and which role token said so: "mmproj-Qwen3.6-VL-dev" and
+// "Qwen3.6-VL-dev-mmproj" both report base "qwen3.6-vl-dev" and role
+// "mmproj". A name stating no role token, or more than one, answers two
+// empty strings: two role tokens leave no single part the base could be, and
+// zero leave nothing to derive a component's family from.
+func Component(s string) (base, role string) {
+	var toks []string
+	for _, p := range parts(s) {
+		t, _ := tokens(p)
+		toks = append(toks, t...)
+	}
+	baseParts, roles := splitParts(toks)
+	if len(roles) != 1 || len(baseParts) == 0 {
+		return "", ""
+	}
+	return strings.Join(baseParts, "-"), roles[0]
 }
 
 func isVersion(t string) bool {
