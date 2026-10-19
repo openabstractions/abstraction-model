@@ -1,11 +1,19 @@
 # abstraction-model
 
-Turn a model name from Hugging Face, Ollama, LM Studio or another registry
+*For applications that name a model and need its exact files.*
+
+Resolve a model name to the exact files it means, each with a digest a
+download can verify. Turn a model name from Hugging Face, Ollama, LM Studio or another registry
 into one exact set of verifiable bytes before downloading it, and tell
 whether two differently-named models are the same one. A `family` is what
 two names for the same weights must agree on before one of them can answer
 for the other. The resolver understands revisions, published digests,
 quantization and family aliases.
+
+**What's new here:** A model name resolves to exact, verifiable files, and two
+names for the same model resolve to one descriptor (family, quantisation,
+format), so the copy Ollama, LM Studio or the Hugging Face cache already holds
+is recognised as the same model.
 
 ## Start
 
@@ -292,3 +300,17 @@ local store with no network, the local-store lookup, not offering the same
 file twice, an end-to-end run that uses a local copy while the "remote" is
 unreachable, and a corrupt local copy being caught despite a filename that
 claims otherwise.
+
+<!-- BEGIN GENERATED PERMISSION DEFINITIONS -->
+
+## Permission definitions
+
+Generated from the existing compiled catalogue. [RIGHTS.json](RIGHTS.json) contains the complete action/profile records, disclosure, lifecycle, first-use behavior, selector support and finite bundles.
+
+This reference records compiled receiving support; RIGHTS.json names the compilation context. A connected runtime advertises current availability and selector support. These definitions supply no grant.
+
+| Action | Resource profile | Owning operations | First-use targets | Compiled receiver |
+|---|---|---|---|---|
+| `abstraction.model/lookup` | `abstraction.rights/legacy-exact-string@1` | `abstraction.model/resolver@1#Resolve` | Legacy `exact` | served in compiled context |
+
+<!-- END GENERATED PERMISSION DEFINITIONS -->

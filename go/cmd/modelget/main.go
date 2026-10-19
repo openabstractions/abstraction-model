@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	config "github.com/openabstractions/abstraction-config/go"
 	"github.com/openabstractions/abstraction-download/go"
 	job "github.com/openabstractions/abstraction-job/go"
 	"github.com/openabstractions/abstraction-model/go"
@@ -70,7 +71,7 @@ refs:
   ollama://qwen2.5:0.5b             a model Ollama already pulled
 
 env:
-  MODELGET_STORE         where jobs live (default ~/.abstraction)
+  MODELGET_STORE         where jobs live (default: job-store in the per-user data folder)
   ABSTRACTION_STORE      the same thing under its generic name, shared with jobd
   ABSTRACTION_NAS_STORE  a job store on a share, watched by a jobd elsewhere
   ABSTRACTION_CRED_HF    bearer token for gated HuggingFace repos
@@ -109,19 +110,15 @@ func storeRoot() string {
 			return v
 		}
 	}
-	home, err := os.UserHomeDir()
+	root, err := config.LegacyJobStore()
 	if err != nil {
 		fatal(err)
 	}
-	if legacy := filepath.Join(home, ".modelget"); exists(legacy) {
-		return legacy
+	home, _ := os.UserHomeDir()
+	if notice := config.LegacyHomeStoreNotice(root, home); notice != "" {
+		fmt.Fprintln(os.Stderr, "modelget:", notice)
 	}
-	return filepath.Join(home, ".abstraction")
-}
-
-func exists(p string) bool {
-	_, err := os.Stat(p)
-	return err == nil
+	return root
 }
 
 func openStore() job.Store {

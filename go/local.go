@@ -2,11 +2,11 @@ package model
 
 import (
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	download "github.com/openabstractions/abstraction-download/go"
 	storage "github.com/openabstractions/abstraction-storage/go"
+
+	identity "github.com/openabstractions/abstraction-identity"
 )
 
 // Local finds bytes you already have.
@@ -92,12 +92,12 @@ func (l *Local) Augment(spec download.Spec) download.Spec {
 	already := make(map[string]bool, len(spec.Sources))
 	for _, s := range spec.Sources {
 		if s.Scheme == "file" {
-			already[strings.ToLower(filepath.Clean(s.Locator))] = true
+			already[placeKey(s.Locator)] = true
 		}
 	}
 	local := make([]download.Source, 0, len(hits))
 	for _, h := range hits {
-		key := strings.ToLower(filepath.Clean(h.Path))
+		key := placeKey(h.Path)
 		if already[key] {
 			continue
 		}
@@ -118,12 +118,23 @@ func (l *Local) Augment(spec download.Spec) download.Spec {
 // shared rather than duplicated — the actual answer to four tools keeping four
 // copies.
 func SameVolume(a, b string) bool {
-	if runtime.GOOS == "windows" {
-		va, vb := filepath.VolumeName(strings.ToUpper(a)), filepath.VolumeName(strings.ToUpper(b))
-		return va != "" && va == vb
+	// On Windows the two volume roots are one folder by file identity
+	// (identity.SameFile); a path with no volume name has no root to ask.
+	if va, vb := filepath.VolumeName(a), filepath.VolumeName(b); va != "" && vb != "" {
+		same, err := identity.SameFile(va+string(filepath.Separator), vb+string(filepath.Separator))
+		return err == nil && same
 	}
 	// On POSIX this needs a stat comparison of device numbers, which the
 	// caller can do; returning false is the safe answer because it only costs
 	// a copy.
 	return false
+}
+
+// placeKey keys a path that may name one file in several spellings: its final
+// path when it exists (identity.PlaceKey), else its cleaned spelling.
+func placeKey(p string) string {
+	if key, err := identity.PlaceKey(p); err == nil {
+		return key
+	}
+	return filepath.Clean(p)
 }

@@ -1,5 +1,7 @@
 # abstraction-model, in Python
 
+*For Python applications.*
+
 Whether two strings from two hosts name one model. Hugging Face, Ollama, LM
 Studio and a directory on disk each write the same weights a different way, so an
 application that has already downloaded a model cannot tell that the one it is

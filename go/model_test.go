@@ -294,9 +294,13 @@ func TestAugmentDoesNotDuplicate(t *testing.T) {
 	sum := sha256.Sum256(weights)
 	hexsum := hex.EncodeToString(sum[:])
 	blobs := filepath.Join(t.TempDir(), "blobs")
-	os.MkdirAll(blobs, 0o755)
+	if err := os.MkdirAll(blobs, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	blob := filepath.Join(blobs, "sha256-"+hexsum)
-	os.WriteFile(blob, weights, 0o644)
+	if err := os.WriteFile(blob, weights, 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	l := NewLocalIn(storage.New(storage.NewForeignStore("ollama", blobs, "sha256-")))
 	spec := download.Spec{
@@ -307,6 +311,61 @@ func TestAugmentDoesNotDuplicate(t *testing.T) {
 	if len(got.Sources) != 1 {
 		t.Fatalf("the same file was offered %d times: %+v", len(got.Sources), got.Sources)
 	}
+	t.Run("same_file_alias", func(t *testing.T) {
+		alias := filepath.Join(t.TempDir(), "resolver-blob")
+		if err := os.Symlink(blob, alias); err != nil {
+			t.Skipf("this account cannot make a file link here: %v", err)
+		}
+		blobInfo, err := os.Stat(blob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aliasInfo, err := os.Stat(alias)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !os.SameFile(blobInfo, aliasInfo) {
+			t.Fatal("the file link does not name the local blob")
+		}
+		aliasSpec := spec
+		aliasSpec.Sources = []download.Source{{Scheme: "file", Locator: alias}}
+		if got := l.Augment(aliasSpec); len(got.Sources) != 1 {
+			t.Fatalf("the aliased file was offered %d times: %+v", len(got.Sources), got.Sources)
+		}
+	})
+	t.Run("distinct_case_files", func(t *testing.T) {
+		other := filepath.Join(blobs, strings.ToUpper(filepath.Base(blob)))
+		file, err := os.OpenFile(other, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+		if os.IsExist(err) {
+			t.Skip("this volume aliases the case-distinct filenames")
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := file.Write(weights); err != nil {
+			file.Close()
+			t.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		blobInfo, err := os.Stat(blob)
+		if err != nil {
+			t.Fatal(err)
+		}
+		otherInfo, err := os.Stat(other)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if os.SameFile(blobInfo, otherInfo) {
+			t.Skip("this volume aliases the case-distinct filenames")
+		}
+		otherSpec := spec
+		otherSpec.Sources = []download.Source{{Scheme: "file", Locator: other}}
+		if got := l.Augment(otherSpec); len(got.Sources) != 2 {
+			t.Fatalf("distinct existing files produced %d sources, want 2: %+v", len(got.Sources), got.Sources)
+		}
+	})
 }
 
 // TestEndToEndUsesLocalCopyInsteadOfNetwork is the payoff, exercised through the

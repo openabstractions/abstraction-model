@@ -1,0 +1,38 @@
+{
+  "format": "openabstractions-rights@1",
+  "owner": "abstraction.model",
+  "generated": "Do not edit. Run rights-catalogue --write from the existing compiled catalogue.",
+  "source": "github.com/openabstractions/abstraction-facade/go/grants",
+  "availability": "Compiled catalogue reference: served and selector support use the named receiving-service context. Connected-runtime discovery supplies current availability. Facade Applications is experimental. Definitions grant no access.",
+  "compiled_receivers": {
+    "credentials": true,
+    "application_logs": true
+  },
+  "definitions": [
+    {
+      "definition": {
+        "action": "abstraction.model/lookup",
+        "owner_contract": "abstraction.model/resolver@1",
+        "operations": [
+          "abstraction.model/resolver@1#Resolve"
+        ],
+        "resource_profile": "abstraction.rights/legacy-exact-string@1",
+        "resource_type": "string (legacy exact resource)",
+        "enforced_by": [
+          "abstraction.model/resolver@1"
+        ],
+        "disclosure": "Resolve portable requests/descriptor manifest. The model manifest@1 profile is defined and unserved.",
+        "lifecycle": "All model lookups in one registry; network reach can occur; manifest moves no content bytes.",
+        "first_use": "exact",
+        "served": true
+      },
+      "label": "abstraction.model/lookup",
+      "supported_selectors": [],
+      "first_use_selectors": [],
+      "collection": "All model lookups in one registry; network reach can occur; manifest moves no content bytes.",
+      "all_effect": "",
+      "request_type": "string (legacy exact resource)"
+    }
+  ],
+  "bundles": []
+}
