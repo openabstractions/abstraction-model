@@ -50,7 +50,7 @@ routing question, equality of the parsed `Name` answers the storage one.
 | call | what it does |
 |---|---|
 | `parse(s)` | a `Name` with `family` and `quant` |
-| `family(s)` | the family alone: what survives packaging, host prefixes and file extensions |
+| `family(s)` | the [family](https://openabstractions.github.io/reference.html#concept-model.family-identity) alone: what survives packaging, host prefixes and file extensions |
 | `same(a, b)` | whether two host identifiers name one model for routing |
 | `shard(name)` | the shard a multi-file model's part belongs to, when the name says |
 

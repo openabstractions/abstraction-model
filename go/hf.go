@@ -3,6 +3,7 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"path"
@@ -91,7 +92,7 @@ func (h HF) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return download.Spec{}, fmt.Errorf("hf: %s %s", api, resp.Status)
+		return download.Spec{}, registryStatusError(api, resp)
 	}
 	var m hfModel
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
@@ -235,4 +236,28 @@ func validFilename(name string) error {
 		return fmt.Errorf("hf: suspicious filename %q", name)
 	}
 	return nil
+}
+
+// Registry refusals the resolver keeps apart. A missing credential, a refused
+// credential and an absent model need different next steps, so each status
+// maps to its own typed outcome; callers test with errors.Is.
+var (
+	ErrRegistryUnauthorized = errors.New("registry requires a credential")
+	ErrRegistryForbidden    = errors.New("registry refused the credential")
+	ErrRegistryNotFound     = errors.New("model not found in registry")
+)
+
+func registryStatusError(api string, resp *http.Response) error {
+	var kind error
+	switch resp.StatusCode {
+	case http.StatusUnauthorized:
+		kind = ErrRegistryUnauthorized
+	case http.StatusForbidden:
+		kind = ErrRegistryForbidden
+	case http.StatusNotFound:
+		kind = ErrRegistryNotFound
+	default:
+		return fmt.Errorf("hf: %s %s", api, resp.Status)
+	}
+	return fmt.Errorf("hf: %s %s: %w", api, resp.Status, kind)
 }

@@ -7,13 +7,7 @@
 namespace abstraction::model {
 namespace detail {
 inline void validate(const api::LookupResult& result) {
-    if (result.outcome != "resolved") {
-        if (result.request || (result.outcome != "invalid" && result.outcome != "unavailable" &&
-                result.outcome != "unsupported_mapping" && result.outcome != "forbidden"))
-            throw api::ServiceError("invalid_model", "inconsistent lookup refusal");
-        return;
-    }
-    if (!result.request) throw api::ServiceError("invalid_model", "resolved lookup lacks request");
+    if (!result.request) return;
     const auto& request = *result.request;
     const auto& digest = request.artifact.digest;
     if (digest.size() != 71 || digest.compare(0, 7, "sha256:") != 0 ||
@@ -51,8 +45,8 @@ public:
         auto scoped = *this; scoped.cancellation_ = std::move(cancellation); return scoped;
     }
     api::LookupResult resolve(const api::Ref& ref) override {
-        auto transport = deadline_ ? ipc::FrameTransport(endpoint_, *deadline_, 1u<<20)
-                                   : ipc::FrameTransport(endpoint_, 5000, 1u<<20);
+        auto transport = deadline_ ? ipc::FrameTransport(endpoint_, *deadline_, ipc::kDefaultMaxFrame)
+                                   : ipc::FrameTransport(endpoint_, ipc::kDefaultCallBudgetMs, ipc::kDefaultMaxFrame);
         transport = transport.with_cancellation(cancellation_).with_server_expectation(server_);
         api::ModelResolverClient<ipc::FrameTransport> client(transport);
         auto result = client.resolve(ref);

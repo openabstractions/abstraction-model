@@ -1,0 +1,29 @@
+{
+  "version": "2026-11-08.2",
+  "note": "abstraction.model/catalog@1, compiled into the runtime (research/first-run/DECISION.md §3 and §4). Each use lists its entries strongest first. Rung 1 passed the 40 tok/s gate on 2026-10-06 (research/live-runs/2026-10-06-gpu-offload.md). The other proposed rungs carry no reviewed revision and digest yet and stay out until they do. Models whose licence needs an agreement are excluded (DR-16). Qwen3.6 35B was trained for 262144 tokens per conversation. Context is chosen per conversation (abstraction.model context plan): the trained maximum when it fits with one conversation slot, and a second slot only when memory still allows that full context. kv_bytes_per_token is the memory cost of one token of one conversation: the measured 22528 bytes/token main-plus-one-draft KV of the pinned b10825 runs. conversation_slots is the most conversations kept resident at once. Fit sizes the use's context in every slot: two slots of 32768 tokens with MTP n3, cache RAM 1024 MiB and two checkpoints. The startup residual is 3072 MiB, from the pinned b10825 two-slot runs of 2026-11-05: recurrent, compute and output buffers 780 MiB plus the 1536-MiB provider cache allowance (1024 RAM + 2 slots x 2 checkpoints x 128 MiB) give 2316 MiB; the measured engine peak less weights, KV and the 1 GiB margin gives 2840 MiB; the larger is rounded up to whole GiB. Excludes weights, KV and the separate 1 GiB margin.",
+  "context": {"chat": 32768, "code": 32768},
+  "uses": {
+    "code": ["qwen3.6-35b-a3b"],
+    "chat": ["qwen3.6-35b-a3b"]
+  },
+  "entries": {
+    "qwen3.6-35b-a3b": {
+      "title": "Qwen3.6 35B",
+      "source": {
+        "registry": "hf",
+        "repo": "unsloth/Qwen3.6-35B-A3B-MTP-GGUF",
+        "revision": "5bc3e238d916f48a861bac2f8a1990a0e9b7e98d",
+        "quant": "",
+        "file": "Qwen3.6-35B-A3B-UD-Q4_K_XL.gguf"
+      },
+      "digest": "sha256:55983c5a75a1ab969824077b3bb3de4146e82a9234072b48ad4e8f92ad3fe9f1",
+      "size_bytes": 22853663008,
+      "kv_bytes_per_token": 22528,
+      "trained_context": 262144,
+      "conversation_slots": 2,
+      "startup_residual_bytes": 3221225472,
+      "license": "Apache-2.0",
+      "gated": false
+    }
+  }
+}

@@ -14,6 +14,7 @@ import (
 
 type Ref = wire.Ref
 type LookupResult = wire.LookupResult
+type FitResult = wire.FitResult
 type Client struct{ transport listen.FrameClient }
 
 func New(endpoint string) *Client {
@@ -44,11 +45,29 @@ func (c *Client) ResolveContext(ctx context.Context, ref Ref) (LookupResult, err
 	return r, nil
 }
 
-// The service's result invariant is checked before exposing a download request.
-func validResult(r LookupResult) bool {
-	if (r.Outcome == wire.LookupOutcomeResolved) != (r.Request != nil) {
-		return false
+// Fit ranks the compiled-in model catalogue for use on this machine
+// (abstraction.model/catalog@1). It reads no weight file and changes nothing.
+func (c *Client) Fit(use CatalogUse) (FitResult, error) {
+	return c.FitContext(context.Background(), use)
+}
+
+// FitContext retains no context between calls.
+func (c *Client) FitContext(ctx context.Context, use CatalogUse) (FitResult, error) {
+	if err := ctx.Err(); err != nil {
+		return FitResult{}, err
 	}
+	r, e := wire.NewModelCatalogClient(c.transport.WithContext(ctx)).Fit(use)
+	if e != nil {
+		return FitResult{}, e
+	}
+	if r.Outcome != FitOutcomeFitted && (r.CatalogVersion != "" || r.PoolBytes != 0 || len(r.Entries) != 0) {
+		return FitResult{}, errors.New("model: inconsistent fit result")
+	}
+	return r, nil
+}
+
+// Request content is checked after the generated RPC outcome/presence check.
+func validResult(r LookupResult) bool {
 	if r.Request == nil {
 		return true
 	}

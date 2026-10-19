@@ -48,53 +48,9 @@ def _strs(out, v, depth):
 
 
 def _raw(out, s, depth):
-    b = s.encode("utf-8") if isinstance(s, str) else s
-    i, n = 0, len(b)
-    while i < n:
-        c = b[i]
-        if c in _WS:
-            i += 1
-        elif c == 0x22:
-            j = i + 1
-            while j < n:
-                if b[j] == 0x5C:
-                    j += 2
-                    continue
-                if b[j] == 0x22:
-                    j += 1
-                    break
-                j += 1
-            out += b[i:j]
-            i = j
-        elif c in (0x7B, 0x5B):
-            out.append(c)
-            i += 1
-            j = i
-            while j < n and b[j] in _WS:
-                j += 1
-            if j < n and b[j] in (0x7D, 0x5D):
-                out.append(b[j])
-                i = j + 1
-            else:
-                depth += 1
-                out += b"\n"
-                _pad(out, depth)
-        elif c in (0x7D, 0x5D):
-            depth -= 1
-            out += b"\n"
-            _pad(out, depth)
-            out.append(c)
-            i += 1
-        elif c == 0x2C:
-            out += b",\n"
-            _pad(out, depth)
-            i += 1
-        elif c == 0x3A:
-            out += b": "
-            i += 1
-        else:
-            out.append(c)
-            i += 1
+    # An opaque value's bytes as they are ([DEF-A3]).
+    # Whitespace around the value is not part of it.
+    out += (s.encode("utf-8") if isinstance(s, str) else bytes(s)).strip(bytes(_WS))
 
 
 def _rawmap(out, m, depth):
@@ -119,6 +75,21 @@ def _esc(out, s):
     for c in s.encode("utf-8"):
         _esc_byte(out, c)
     out += b'"'
+
+
+def _write_list(out, v, depth, enc):
+    if not v:
+        out += b"[]"
+        return
+    out += b"[\n"
+    for i, x in enumerate(v):
+        _pad(out, depth + 1)
+        enc(out, x, depth + 1)
+        if i + 1 < len(v):
+            out += b","
+        out += b"\n"
+    _pad(out, depth)
+    out += b"]"
 
 _Imported0 = _dependency_request.Request
 
@@ -163,6 +134,33 @@ class ManifestOutcome(_StrEnum):
     INVALID = "invalid"
     UNAVAILABLE = "unavailable"
     UNSUPPORTED_MAPPING = "unsupported_mapping"
+    FORBIDDEN = "forbidden"
+
+
+class CatalogUse(_StrEnum):
+    CHAT = "chat"
+    CODE = "code"
+    VISION = "vision"
+    EMBED = "embed"
+    IMAGE = "image"
+    VIDEO = "video"
+
+
+class Fit(_StrEnum):
+    FITS = "fits"
+    SLOW = "slow"
+    NO = "no"
+
+
+class Availability(_StrEnum):
+    DOWNLOAD = "download"
+    SERVED = "served"
+
+
+class FitOutcome(_StrEnum):
+    FITTED = "fitted"
+    INVALID = "invalid"
+    UNAVAILABLE = "unavailable"
     FORBIDDEN = "forbidden"
 
 
@@ -228,6 +226,52 @@ class ManifestResult:
 
 
 @dataclasses.dataclass(kw_only=True)
+class FitEntry:
+    """One ranked catalogue entry for the asked use. title is the catalogue's
+    display name. family is the model family a runtime's router names.
+    need_bytes is size plus the KV cache at context plus the recorded startup
+    residual plus 1 GiB (MODEL-K2's fit rule). The residual is a curated upper
+    bound for the pinned engine and catalogue context/profile, excluding
+    weights, the main/draft KV term and the separate 1 GiB margin; a missing
+    private catalogue fact contributes zero and preserves the prior estimate.
+    context is the use's context length in tokens (MODEL-K12). machine is empty
+    for this computer and names the paired runtime that serves the entry
+    otherwise; it is empty for download. download_bytes is 0 when served.
+    license is an SPDX license expression. source and digest (sha256:<hex>) name
+    the one file to fetch (MODEL-K4); a source is never a path."""
+
+    title: str = ""
+    family: str = ""
+    fit: Fit | str = ""
+    availability: Availability | None = None
+    machine: str = ""
+    download_bytes: int = 0
+    need_bytes: int = 0
+    context: int = 0
+    license: str = ""
+    source: Ref = dataclasses.field(default_factory=Ref)
+    digest: str = ""
+
+
+@dataclasses.dataclass(kw_only=True)
+class FitResult:
+    """fitted carries the catalogue version and every entry of the use in rank
+    order, strongest first; the first entry that fits or is served is the pick.
+    pool_bytes is what a new card:0 lease could take now without a yield: the
+    lease book's free amount (RES-L2), net of measured use and the unoccupied
+    part of every live lease. A card carved from memory, or one the instrument
+    cannot read, takes the machine's memory pool. Every other outcome carries an
+    empty version, a zero pool and no entries. invalid is a use the catalogue
+    does not list; unavailable is a pool or offer read that could not answer;
+    forbidden is a receiving boundary or policy refusal."""
+
+    outcome: FitOutcome | None = None
+    catalog_version: str = ""
+    pool_bytes: int = 0
+    entries: list[FitEntry] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass(kw_only=True)
 class _ModelResolverResolveArguments:
     ref: Ref = dataclasses.field(default_factory=Ref)
 
@@ -235,6 +279,11 @@ class _ModelResolverResolveArguments:
 @dataclasses.dataclass(kw_only=True)
 class _ModelManifestResolveArguments:
     ref: Ref = dataclasses.field(default_factory=Ref)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ModelCatalogFitArguments:
+    use: CatalogUse | None = None
 
 
 @dataclasses.dataclass(kw_only=True)
@@ -268,6 +317,11 @@ class _ModelResolverResolveResult:
 @dataclasses.dataclass(kw_only=True)
 class _ModelManifestResolveResult:
     value: ManifestResult = dataclasses.field(default_factory=ManifestResult)
+
+
+@dataclasses.dataclass(kw_only=True)
+class _ModelCatalogFitResult:
+    value: FitResult = dataclasses.field(default_factory=FitResult)
 
 
 def _write_ref(out, v, depth):
@@ -359,6 +413,133 @@ def _write_manifest_result(out, v, depth):
     out += b"}"
 
 
+def _write_fit_entry(out, v, depth):
+    if isinstance(v.title, str):
+        _size = len(v.title.encode("utf-8", "surrogatepass"))
+        if _size < 1 or _size > 64: raise Refusal("bad_value", 0)
+    if isinstance(v.family, str):
+        _size = len(v.family.encode("utf-8", "surrogatepass"))
+        if _size < 1 or _size > 128: raise Refusal("bad_value", 0)
+    if isinstance(v.machine, str):
+        _size = len(v.machine.encode("utf-8", "surrogatepass"))
+        if _size > 128: raise Refusal("bad_value", 0)
+    if isinstance(v.license, str):
+        _size = len(v.license.encode("utf-8", "surrogatepass"))
+        if _size > 128: raise Refusal("bad_value", 0)
+    if isinstance(v.digest, str):
+        _size = len(v.digest.encode("utf-8", "surrogatepass"))
+        if _size > 71: raise Refusal("bad_value", 0)
+    if not isinstance(v.fit, str):
+        raise Refusal("wrong_type", 0)
+    _closed_enum(Availability, v.availability)
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "title")
+    out += b": "
+    _esc(out, v.title)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "family")
+    out += b": "
+    _esc(out, v.family)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "fit")
+    out += b": "
+    _esc(out, v.fit)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "availability")
+    out += b": "
+    _esc(out, v.availability)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "machine")
+    out += b": "
+    _esc(out, v.machine)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "download_bytes")
+    out += b": "
+    _num(out, v.download_bytes)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "need_bytes")
+    out += b": "
+    _num(out, v.need_bytes)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "context")
+    out += b": "
+    _num(out, v.context)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "license")
+    out += b": "
+    _esc(out, v.license)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "source")
+    out += b": "
+    _write_ref(out, v.source, depth + 1)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "digest")
+    out += b": "
+    _esc(out, v.digest)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_fit_result(out, v, depth):
+    if isinstance(v.catalog_version, str):
+        _size = len(v.catalog_version.encode("utf-8", "surrogatepass"))
+        if _size > 32: raise Refusal("bad_value", 0)
+    if isinstance(v.entries, list):
+        _size = len(v.entries)
+        if _size > 64: raise Refusal("bad_value", 0)
+    _closed_enum(FitOutcome, v.outcome)
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "outcome")
+    out += b": "
+    _esc(out, v.outcome)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "catalog_version")
+    out += b": "
+    _esc(out, v.catalog_version)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "pool_bytes")
+    out += b": "
+    _num(out, v.pool_bytes)
+    out += b","
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "entries")
+    out += b": "
+    _write_list(out, v.entries, depth + 1, _write_fit_entry)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
 def _write_oa_model_resolver_resolve_arguments(out, v, depth):
     out += b"{"
     out += b"\n"
@@ -378,6 +559,19 @@ def _write_oa_model_manifest_resolve_arguments(out, v, depth):
     _esc(out, "ref")
     out += b": "
     _write_ref(out, v.ref, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_model_catalog_fit_arguments(out, v, depth):
+    _closed_enum(CatalogUse, v.use)
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "use")
+    out += b": "
+    _esc(out, v.use)
     out += b"\n"
     _pad(out, depth)
     out += b"}"
@@ -486,6 +680,18 @@ def _write_oa_model_manifest_resolve_result(out, v, depth):
     _esc(out, "value")
     out += b": "
     _write_manifest_result(out, v.value, depth + 1)
+    out += b"\n"
+    _pad(out, depth)
+    out += b"}"
+
+
+def _write_oa_model_catalog_fit_result(out, v, depth):
+    out += b"{"
+    out += b"\n"
+    _pad(out, depth + 1)
+    _esc(out, "value")
+    out += b": "
+    _write_fit_result(out, v.value, depth + 1)
     out += b"\n"
     _pad(out, depth)
     out += b"}"
@@ -803,6 +1009,28 @@ class _Reader:
         self.depth -= 1
 
 
+def _read_list(r, elem):
+    if r.at() != _LBRACK:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    out = []
+    r.ws()
+    if r.at() != _RBRACK:
+        while True:
+            r.ws()
+            out.append(elem(r))
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACK:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    return out
+
+
 def _read_ref(r):
     if r.at() != _LBRACE:
         raise r.refuse("wrong_type")
@@ -968,6 +1196,180 @@ def _read_manifest_result(r):
     return v
 
 
+def _read_fit_entry(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = FitEntry()
+    seen = 0
+    r.ws()
+    unknown_keys = set()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "title":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.title = r.string()
+            elif key == "family":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.family = r.string()
+            elif key == "fit":
+                if seen & 4:
+                    raise r.refuse("duplicate_field")
+                seen |= 4
+                v.fit = r.string()
+            elif key == "availability":
+                if seen & 8:
+                    raise r.refuse("duplicate_field")
+                seen |= 8
+                v.availability = r.string()
+            elif key == "machine":
+                if seen & 16:
+                    raise r.refuse("duplicate_field")
+                seen |= 16
+                v.machine = r.string()
+            elif key == "download_bytes":
+                if seen & 32:
+                    raise r.refuse("duplicate_field")
+                seen |= 32
+                v.download_bytes = r.integer(-9223372036854775808, 9223372036854775807)
+            elif key == "need_bytes":
+                if seen & 64:
+                    raise r.refuse("duplicate_field")
+                seen |= 64
+                v.need_bytes = r.integer(-9223372036854775808, 9223372036854775807)
+            elif key == "context":
+                if seen & 128:
+                    raise r.refuse("duplicate_field")
+                seen |= 128
+                v.context = r.integer(-9223372036854775808, 9223372036854775807)
+            elif key == "license":
+                if seen & 256:
+                    raise r.refuse("duplicate_field")
+                seen |= 256
+                v.license = r.string()
+            elif key == "source":
+                if seen & 512:
+                    raise r.refuse("duplicate_field")
+                seen |= 512
+                v.source = _read_ref(r)
+            elif key == "digest":
+                if seen & 1024:
+                    raise r.refuse("duplicate_field")
+                seen |= 1024
+                v.digest = r.string()
+            else:
+                if key in unknown_keys:
+                    raise r.refuse("duplicate_key")
+                unknown_keys.add(key)
+                r.skip_value()
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 2047 != 2047:
+        raise r.refuse("missing_field")
+    _size = len(v.title.encode("utf-8", "surrogatepass"))
+    if _size < 1 or _size > 64: raise r.refuse("bad_value")
+    _size = len(v.family.encode("utf-8", "surrogatepass"))
+    if _size < 1 or _size > 128: raise r.refuse("bad_value")
+    _size = len(v.machine.encode("utf-8", "surrogatepass"))
+    if _size > 128: raise r.refuse("bad_value")
+    _size = len(v.license.encode("utf-8", "surrogatepass"))
+    if _size > 128: raise r.refuse("bad_value")
+    _size = len(v.digest.encode("utf-8", "surrogatepass"))
+    if _size > 71: raise r.refuse("bad_value")
+    v.fit = _open_enum(Fit, v.fit)
+    try:
+        v.availability = Availability(v.availability)
+    except ValueError:
+        raise r.refuse("bad_enum") from None
+    return v
+
+
+def _read_fit_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = FitResult()
+    seen = 0
+    r.ws()
+    unknown_keys = set()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "outcome":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.outcome = r.string()
+            elif key == "catalog_version":
+                if seen & 2:
+                    raise r.refuse("duplicate_field")
+                seen |= 2
+                v.catalog_version = r.string()
+            elif key == "pool_bytes":
+                if seen & 4:
+                    raise r.refuse("duplicate_field")
+                seen |= 4
+                v.pool_bytes = r.integer(-9223372036854775808, 9223372036854775807)
+            elif key == "entries":
+                if seen & 8:
+                    raise r.refuse("duplicate_field")
+                seen |= 8
+                v.entries = _read_list(r, _read_fit_entry)
+            else:
+                if key in unknown_keys:
+                    raise r.refuse("duplicate_key")
+                unknown_keys.add(key)
+                r.skip_value()
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 15 != 15:
+        raise r.refuse("missing_field")
+    _size = len(v.catalog_version.encode("utf-8", "surrogatepass"))
+    if _size > 32: raise r.refuse("bad_value")
+    _size = len(v.entries)
+    if _size > 64: raise r.refuse("bad_value")
+    try:
+        v.outcome = FitOutcome(v.outcome)
+    except ValueError:
+        raise r.refuse("bad_enum") from None
+    return v
+
+
 def _read_oa_model_resolver_resolve_arguments(r):
     if r.at() != _LBRACE:
         raise r.refuse("wrong_type")
@@ -1043,6 +1445,49 @@ def _read_oa_model_manifest_resolve_arguments(r):
     r.depth -= 1
     if seen & 1 != 1:
         raise r.refuse("missing_field")
+    return v
+
+
+def _read_oa_model_catalog_fit_arguments(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ModelCatalogFitArguments()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "use":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.use = r.string()
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    try:
+        v.use = CatalogUse(v.use)
+    except ValueError:
+        raise r.refuse("bad_enum") from None
     return v
 
 
@@ -1281,6 +1726,45 @@ def _read_oa_model_manifest_resolve_result(r):
     return v
 
 
+def _read_oa_model_catalog_fit_result(r):
+    if r.at() != _LBRACE:
+        raise r.refuse("wrong_type")
+    r.enter()
+    r.pos += 1
+    v = _ModelCatalogFitResult()
+    seen = 0
+    r.ws()
+    if r.at() != _RBRACE:
+        while True:
+            r.ws()
+            if r.at() != _QUOTE:
+                raise r.refuse("malformed")
+            key = r.string()
+            r.ws()
+            if r.at() != _COLON:
+                raise r.refuse("malformed")
+            r.pos += 1
+            r.ws()
+            if key == "value":
+                if seen & 1:
+                    raise r.refuse("duplicate_field")
+                seen |= 1
+                v.value = _read_fit_result(r)
+            else:
+                raise r.refuse("unknown_field")
+            r.ws()
+            if r.at() != _COMMA:
+                break
+            r.pos += 1
+    if r.at() != _RBRACE:
+        raise r.refuse("malformed")
+    r.pos += 1
+    r.depth -= 1
+    if seen & 1 != 1:
+        raise r.refuse("missing_field")
+    return v
+
+
 def decode(data):
     r = _Reader(bytes(data))
     r.ws()
@@ -1291,9 +1775,43 @@ def decode(data):
     return v
 
 
+_JSON_RECORDS = {
+    Ref: (_write_ref, _read_ref),
+    LookupResult: (_write_lookup_result, _read_lookup_result),
+    ManifestResult: (_write_manifest_result, _read_manifest_result),
+    FitEntry: (_write_fit_entry, _read_fit_entry),
+    FitResult: (_write_fit_result, _read_fit_result),
+}
+
+
+def to_json(value):
+    """One record as JSON bytes, laid out as this module's documents are and
+    without the document terminator."""
+    codec = _JSON_RECORDS.get(type(value))
+    if codec is None:
+        raise TypeError("to_json takes a record of this module, not %s" % type(value).__name__)
+    out = bytearray()
+    codec[0](out, value, 0)
+    return bytes(out)
+
+
+def from_json(kind, data):
+    """Read one record of class kind from data; a refused input raises Refusal."""
+    codec = _JSON_RECORDS.get(kind)
+    if codec is None:
+        raise TypeError("from_json takes a record class of this module, not %r" % (kind,))
+    r = _Reader(bytes(data))
+    r.ws()
+    v = codec[1](r)
+    r.ws()
+    if r.pos < len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
 # _REFUSALS is in the order two of them are chosen between.
 
-_REFUSALS = ["malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "trailing_bytes"]
+_REFUSALS = ["malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "bad_value", "trailing_bytes"]
 
 
 def _refusal_rank(word):
@@ -1420,20 +1938,25 @@ _SERVICE_RECORDS = {
     "Ref": (Ref, [("registry", "string", "never"), ("repo", "string", "never"), ("revision", "string", "never"), ("quant", "string", "never"), ("file", "string", "never"), ("credential", "string", "zero"), ]),
     "LookupResult": (LookupResult, [("outcome", "enum", "never"), ("request", "OAImported0", "absent"), ]),
     "ManifestResult": (ManifestResult, [("outcome", "enum", "never"), ("manifest", "OAImported1", "absent"), ("resolved_revision", "string", "never"), ]),
+    "FitEntry": (FitEntry, [("title", "string", "never"), ("family", "string", "never"), ("fit", "enum", "never"), ("availability", "enum", "never"), ("machine", "string", "never"), ("download_bytes", "i64", "never"), ("need_bytes", "i64", "never"), ("context", "i64", "never"), ("license", "string", "never"), ("source", "Ref", "never"), ("digest", "string", "never"), ]),
+    "FitResult": (FitResult, [("outcome", "enum", "never"), ("catalog_version", "string", "never"), ("pool_bytes", "i64", "never"), ("entries", "list<FitEntry>", "never"), ]),
     "OAModelResolverResolveArguments": (_ModelResolverResolveArguments, [("ref", "Ref", "never"), ]),
     "OAModelManifestResolveArguments": (_ModelManifestResolveArguments, [("ref", "Ref", "never"), ]),
+    "OAModelCatalogFitArguments": (_ModelCatalogFitArguments, [("use", "enum", "never"), ]),
     "OAServiceFrame": (_ServiceFrame, [("version", "i32", "never"), ("service", "string", "never"), ("method", "string", "never"), ("arguments", "json", "never"), ]),
     "OAServiceReply": (_ServiceReply, [("version", "i32", "never"), ("service", "string", "never"), ("method", "string", "never"), ("ok", "bool", "never"), ("payload", "json", "never"), ]),
     "OAServiceError": (_ServiceError, [("code", "string", "never"), ("message", "string", "never"), ]),
     "OAModelResolverResolveResult": (_ModelResolverResolveResult, [("value", "LookupResult", "never"), ]),
     "OAModelManifestResolveResult": (_ModelManifestResolveResult, [("value", "ManifestResult", "never"), ]),
+    "OAModelCatalogFitResult": (_ModelCatalogFitResult, [("value", "FitResult", "never"), ]),
 }
 
 
 class ModelResolver:
     """Same-account identity-bound model lookup through explicitly configured
     registry providers. A resolved request contains a nonempty verified-format
-    digest and a complete HTTP(S) mapping, anonymous or naming the Ref's
+    digest and a complete HTTP(S) mapping, anonymous or naming the
+    [Ref](https://openabstractions.github.io/reference.html#concept-model.ref)'s
     credential. Providers refuse mappings needing capabilities absent from the
     portable download request. Local adapters and registry configuration remain
     explicit provider-side APIs."""
@@ -1457,6 +1980,8 @@ class ModelResolverClient(ModelResolver):
         _request = _service_request("abstraction.model/resolver@1", "Resolve", _arguments)
         _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.model/resolver@1", "Resolve")
         _result = _service_decode(_read_oa_model_resolver_resolve_result, _payload, 1)
+        if (_result.value.outcome == "resolved") != (_result.value.request is not None):
+            raise ServiceError("invalid_result", "")
         return _result.value
 
 
@@ -1470,12 +1995,14 @@ class ModelManifest:
         abstraction.model/descriptor@1 with entries by role and a descriptor
         with family, quant, format, architecture, size_label, finetune, base,
         source and role. Portable download requests per entry come from
-        resolver@1. No bytes move. role marks a component (MODEL-C3): weights
-        for the servable artifact, or the closed vocabulary a storage inventory
-        source's own classifier answers (projector, vae) for a part of one. A
-        component's base then names the family it belongs to when its own name
-        derives one, in place of base's other meaning of the model a weights
-        file was fine-tuned from."""
+        resolver@1. No bytes move. role marks a
+        [component](https://openabstractions.github.io/reference.html#concept-model-identity.component)
+        (MODEL-C3): weights for the servable artifact, or the closed vocabulary
+        a storage inventory source's own classifier answers (projector, vae) for
+        a part of one. A component's base then names the
+        [family](https://openabstractions.github.io/reference.html#concept-model.family-identity)
+        it belongs to when its own name derives one, in place of base's other
+        meaning of the model a weights file was fine-tuned from."""
         raise NotImplementedError
 
 
@@ -1494,6 +2021,42 @@ class ModelManifestClient(ModelManifest):
         _request = _service_request("abstraction.model/manifest@1", "Resolve", _arguments)
         _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.model/manifest@1", "Resolve")
         _result = _service_decode(_read_oa_model_manifest_resolve_result, _payload, 1)
+        if (_result.value.outcome == "resolved") != (_result.value.manifest is not None):
+            raise ServiceError("invalid_result", "")
+        return _result.value
+
+
+class ModelCatalog:
+    """The release-curated model catalogue, compiled into the runtime, and its fit
+    rule. Same-account, and gated like router@1 Offer by
+    abstraction.router/inventory.read on abstraction.router/inventory, since a
+    served entry discloses what runtimes offer. Choosing an entry, downloading
+    it and selecting it are separate public operations."""
+
+    def fit(self, use: CatalogUse | None) -> FitResult:
+        """Rank the catalogue's entries for use against this machine and the
+        families runtimes already serve. Reads abstraction.resource/table@1 and
+        abstraction.router/router@1 Offer, which include paired runtimes. Reads
+        no weight file, sends no request to a registry, submits no job and
+        changes nothing."""
+        raise NotImplementedError
+
+
+class ModelCatalogClient(ModelCatalog):
+    """Calls abstraction.model/catalog@1 through a transport that exchanges frames."""
+
+    def __init__(self, transport):
+        self._transport = transport
+
+    def fit(self, use: CatalogUse | None) -> FitResult:
+        _service_check("enum", use)
+        _args = _ModelCatalogFitArguments()
+        _args.use = use
+        _arguments = _service_encode(_write_oa_model_catalog_fit_arguments, _args, 1)
+        _service_decode(_read_oa_model_catalog_fit_arguments, _arguments, 1)
+        _request = _service_request("abstraction.model/catalog@1", "Fit", _arguments)
+        _payload = _service_response(self._transport.exchange_frame(_request), "abstraction.model/catalog@1", "Fit")
+        _result = _service_decode(_read_oa_model_catalog_fit_result, _payload, 1)
         return _result.value
 
 
@@ -1555,6 +2118,8 @@ _NAMED_RECORDS = {
     "Ref": (Ref, [("registry", "string", "never"), ("repo", "string", "never"), ("revision", "string", "never"), ("quant", "string", "never"), ("file", "string", "never"), ("credential", "string", "zero"), ]),
     "LookupResult": (LookupResult, [("outcome", "enum", "never"), ("request", "OAImported0", "absent"), ]),
     "ManifestResult": (ManifestResult, [("outcome", "enum", "never"), ("manifest", "OAImported1", "absent"), ("resolved_revision", "string", "never"), ]),
+    "FitEntry": (FitEntry, [("title", "string", "never"), ("family", "string", "never"), ("fit", "enum", "never"), ("availability", "enum", "never"), ("machine", "string", "never"), ("download_bytes", "i64", "never"), ("need_bytes", "i64", "never"), ("context", "i64", "never"), ("license", "string", "never"), ("source", "Ref", "never"), ("digest", "string", "never"), ]),
+    "FitResult": (FitResult, [("outcome", "enum", "never"), ("catalog_version", "string", "never"), ("pool_bytes", "i64", "never"), ("entries", "list<FitEntry>", "never"), ]),
 }
 
 
@@ -1619,6 +2184,14 @@ def _check_lookup_result(v, depth=0, limit=_DEPTH_LIMIT):
 
 def _check_manifest_result(v, depth=0, limit=_DEPTH_LIMIT):
     _named_check("ManifestResult", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_fit_entry(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("FitEntry", v, depth, min(limit, _DEPTH_LIMIT))
+
+
+def _check_fit_result(v, depth=0, limit=_DEPTH_LIMIT):
+    _named_check("FitResult", v, depth, min(limit, _DEPTH_LIMIT))
 
 
 def _decode_ref_at(data, depth, limit):
@@ -1718,6 +2291,76 @@ def encode_manifest_result(v):
 
 def decode_manifest_result(data):
     v, n = _decode_manifest_result_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_fit_entry_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_fit_entry(r)
+    return v, r.pos
+
+
+def _encode_fit_entry_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_fit_entry(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_fit_entry(out, v, depth)
+    _decode_fit_entry_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_fit_entry(v):
+    return _encode_fit_entry_at(v, 0) + "\n".encode()
+
+
+def decode_fit_entry(data):
+    v, n = _decode_fit_entry_at(data, 0, _DEPTH_LIMIT)
+    r = _Reader(bytes(data))
+    r.pos = n
+    r.ws()
+    if r.pos != len(r.buf):
+        raise r.refuse("trailing_bytes")
+    return v
+
+
+def _decode_fit_result_at(data, depth, limit):
+    r = _Reader(bytes(data))
+    if depth < 0 or limit < 1:
+        raise r.refuse("depth_exceeded")
+    r.depth = depth
+    r.limit = min(limit, _DEPTH_LIMIT)
+    r.ws()
+    v = _read_fit_result(r)
+    return v, r.pos
+
+
+def _encode_fit_result_at(v, depth):
+    if depth < 0 or depth >= _DEPTH_LIMIT:
+        raise _Reader(b"").refuse("depth_exceeded")
+    _check_fit_result(v, depth, _DEPTH_LIMIT)
+    out = bytearray()
+    _write_fit_result(out, v, depth)
+    _decode_fit_result_at(out, depth, _DEPTH_LIMIT)
+    return bytes(out)
+
+
+def encode_fit_result(v):
+    return _encode_fit_result_at(v, 0) + "\n".encode()
+
+
+def decode_fit_result(data):
+    v, n = _decode_fit_result_at(data, 0, _DEPTH_LIMIT)
     r = _Reader(bytes(data))
     r.pos = n
     r.ws()

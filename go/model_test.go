@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -515,5 +516,26 @@ func TestTokenNeverReachesTheRecord(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), HFCredential) {
 		t.Fatal("the record does not name the credential, so nothing could resolve it later")
+	}
+}
+
+func TestHFRegistryStatusOutcomesAreDistinct(t *testing.T) {
+	cases := map[int]error{
+		http.StatusUnauthorized: ErrRegistryUnauthorized,
+		http.StatusForbidden:    ErrRegistryForbidden,
+		http.StatusNotFound:     ErrRegistryNotFound,
+	}
+	all := []error{ErrRegistryUnauthorized, ErrRegistryForbidden, ErrRegistryNotFound}
+	for code, want := range cases {
+		s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(code)
+		}))
+		_, err := HF{BaseURL: s.URL}.Resolve(context.Background(), Ref{Repo: "org/model"})
+		s.Close()
+		for _, other := range all {
+			if got := errors.Is(err, other); got != (other == want) {
+				t.Fatalf("status %d: errors.Is(%v, %v) = %v", code, err, other, got)
+			}
+		}
 	}
 }

@@ -5,7 +5,7 @@
 Resolve a model name to the exact files it means, each with a digest a
 download can verify. Turn a model name from Hugging Face, Ollama, LM Studio or another registry
 into one exact set of verifiable bytes before downloading it, and tell
-whether two differently-named models are the same one. A `family` is what
+whether two differently-named models are the same one. A [`family`](https://openabstractions.github.io/reference.html#concept-model.family-identity) is what
 two names for the same weights must agree on before one of them can answer
 for the other. The resolver understands revisions, published digests,
 quantization and family aliases.
@@ -22,7 +22,8 @@ Install the runtime first: https://openabstractions.org/adopt.html
     go get github.com/openabstractions/abstraction-model/go
 
 Applications select `abstraction.model/resolver@1` through the facade and
-call the typed resolver:
+call the typed resolver. A [model reference](https://openabstractions.github.io/reference.html#concept-model.ref) names the registry
+and repository, with optional revision, quantization, file and credential selectors:
 
 ```go
 import (
@@ -58,6 +59,56 @@ local   %USERPROFILE%\.ollama\models\blobs\sha256-c5396e06...  (ollama)
 these exact bytes are already on this machine 1 time(s).
 fetching this would cost nothing but a copy.
 ```
+
+### Which catalogue model fits this computer
+
+`abstraction.model/catalog@1` ranks the release's catalogue for one use
+(`chat`, `code`, `vision`, `embed`, `image` or `video`) against this computer's
+memory pool and what the router already serves. It reads no weight file, asks no
+registry and changes nothing. The caller needs the router's `inventory.read`
+right. `model.LocalPick` is the one rule that marks this computer's pick: the first
+entry in rank order that this computer serves or that fits here. An entry
+that a paired machine serves is never the pick.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	facade "github.com/openabstractions/abstraction-facade/go/client"
+	model "github.com/openabstractions/abstraction-model/go/client"
+)
+
+func main() {
+	ctx := context.Background()
+	catalog, err := facade.Discover().ResolveModelCatalog(ctx, facade.Requirements{Scope: facade.ScopeLocal})
+	if err != nil {
+		log.Fatal(err)
+	}
+	result, err := catalog.FitContext(ctx, model.CatalogUseCode)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if result.Outcome != model.FitOutcomeFitted {
+		log.Fatalf("catalogue answered %s", result.Outcome)
+	}
+	pick, _ := model.LocalPick(result)
+	for i, e := range result.Entries {
+		fmt.Printf("%-40s fit=%s ready=%t download=%d pick=%t\n",
+			e.Title, e.Fit, e.Availability == model.AvailabilityServed, e.DownloadBytes, i == pick)
+	}
+}
+```
+
+`result.Outcome` is `fitted` with the catalogue version, `result.PoolBytes` and
+every entry, or `invalid`, `unavailable` or `forbidden` with no entries.
+Choosing an entry, downloading it and selecting it are separate operations. An
+application asks OA's setup step for them through
+`abstraction.facade/applications@3` `RequestSetup`, and the person answers the
+step's own question ([CONTRACT.md](CONTRACT.md#the-catalogue)).
 
 This is the AI-specific layer. Below it,
 [`download`](https://github.com/openabstractions/abstraction-download) moves
@@ -293,13 +344,20 @@ request; they do not need the sibling schema sources.
 cd go && go test ./...
 ```
 
-11 tests: reference parsing, revision pinning, refusing a file with no
-published digest, refusing to guess between quantisations, rejecting
-path-traversing filenames from a remote API, resolving Ollama from its
-local store with no network, the local-store lookup, not offering the same
-file twice, an end-to-end run that uses a local copy while the "remote" is
-unreachable, and a corrupt local copy being caught despite a filename that
-claims otherwise.
+The in-process tests (`go/model_test.go`) cover reference parsing, revision
+pinning, refusing a file with no published digest, refusing to guess between
+quantisations, rejecting path-traversing filenames from a remote API,
+resolving Ollama from its local store with no network, the local-store
+lookup, not offering the same file twice, an end-to-end run that uses a
+local copy while the "remote" is unreachable, and a corrupt local copy being
+caught despite a filename that claims otherwise. `go/service` tests the
+served `resolver@1` and its credential cases, `go/credentials_test.go` the
+credential naming, `go/descriptor_test.go` the descriptor identity and
+`go/client` the generated client.
+
+Python carries two packages: `abstraction-model` (`python/`, the identity
+rules a ComfyUI node uses) and `abstraction-model-protocol` (`py/`, the
+generated client). Both carry the release's one version from 0.8.0.
 
 <!-- BEGIN GENERATED PERMISSION DEFINITIONS -->
 

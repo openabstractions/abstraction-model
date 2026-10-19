@@ -9,8 +9,6 @@ import (
 	model "github.com/openabstractions/abstraction-model/go"
 	wire "github.com/openabstractions/abstraction-model/go/abstraction/model/api"
 	"os/user"
-	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -27,9 +25,10 @@ type Host struct {
 	cancel    context.CancelFunc
 	once      sync.Once
 	workers   sync.WaitGroup
-	slots     chan struct{}
+	slots     listen.CallAdmission
 	policy    LookupPolicy
 	apply     CredentialApplier
+	catalog   *catalogBinding
 	OnError   func(error)
 	// Assign before Serve. Called when admission stops, before calls drain.
 	OnStopped func()
@@ -100,7 +99,7 @@ func Listen(endpoint string, registry *model.Registry) (*Host, error) {
 		return nil, e
 	}
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, registry: registry, ctx: ctx, cancel: cancel, slots: make(chan struct{}, 32)}, nil
+	return &Host{listener: listen.Sessions(l, listen.SessionOptions{MaxSessions: 32}), owner: owner.Uid, registry: registry, ctx: ctx, cancel: cancel, slots: listen.NewCallAdmission(32)}, nil
 }
 func (h *Host) Close() error {
 	var e error
@@ -132,16 +131,14 @@ func (h *Host) Serve(ctx context.Context) error {
 			}
 			return e
 		}
-		select {
-		case h.slots <- struct{}{}:
-		default:
-			conn.Close()
+		release, admitted := h.slots.Take(conn)
+		if !admitted {
 			continue
 		}
 		h.workers.Add(1)
 		go func() {
 			defer h.workers.Done()
-			defer func() { <-h.slots }()
+			defer release()
 			defer conn.Close()
 			callCtx, cancel := context.WithTimeout(h.ctx, 5*time.Second)
 			defer cancel()
@@ -150,9 +147,8 @@ func (h *Host) Serve(ctx context.Context) error {
 				defer call.Close()
 			}
 			if e == nil {
-				dispatcher := wire.ModelResolverDispatcher{Handler: &receiver{host: h, call: call, ctx: callCtx}}
 				var reply []byte
-				reply, e = dispatcher.ExchangeFrame(call.Frame)
+				reply, e = h.exchange(callCtx, call)
 				if e == nil {
 					e = call.Reply(reply)
 				}
@@ -164,9 +160,14 @@ func (h *Host) Serve(ctx context.Context) error {
 	}
 }
 
+type callerEvidence interface {
+	Peer() (*identity.Peer, error)
+	Recheck() error
+}
+
 type receiver struct {
 	host *Host
-	call *listen.FramedCall
+	call callerEvidence
 	ctx  context.Context
 }
 
@@ -175,17 +176,8 @@ func (r *receiver) authorized() bool {
 	if e != nil {
 		return false
 	}
-	u, e := p.User.AtLeast(listen.Program.User)
-	if e != nil {
-		return false
-	}
-	principal := ""
-	if u.Kind == "windows" {
-		principal = u.SID
-	} else if u.Kind == "posix" {
-		principal = strconv.Itoa(u.UID)
-	}
-	return principal != "" && principal == r.host.owner
+	_, verdict := identity.AdmitOwner(p, identity.Need{User: listen.Program.User}, r.host.owner)
+	return verdict == identity.OwnerAdmitted
 }
 func (r *receiver) Resolve(ref wire.Ref) (wire.LookupResult, error) {
 	if !r.authorized() {
@@ -226,19 +218,9 @@ func (r *receiver) subject() (string, string, bool) {
 	if e != nil || r.call.Recheck() != nil {
 		return "", "", false
 	}
-	u, e := p.User.AtLeast(listen.Program.User)
-	if e != nil {
+	s, verdict := identity.AdmitOwner(p, identity.Need{User: listen.Program.User, Path: listen.Program.Path}, r.host.owner)
+	if verdict != identity.OwnerAdmitted {
 		return "", "", false
 	}
-	account := ""
-	if u.Kind == "windows" {
-		account = u.SID
-	} else if u.Kind == "posix" && u.UID >= 0 {
-		account = strconv.Itoa(u.UID)
-	}
-	program, e := p.Path.AtLeast(listen.Program.Path)
-	if e != nil || account == "" || account != r.host.owner || !filepath.IsAbs(program) {
-		return "", "", false
-	}
-	return account, filepath.Clean(program), true
+	return s.Account, s.Program, true
 }

@@ -95,7 +95,7 @@ func TestComponentReadsTheBaseAndRole(t *testing.T) {
 
 func TestComponentIsEmptyWithoutExactlyOneRole(t *testing.T) {
 	for _, s := range []string{
-		"Qwen3.6-VL-dev.gguf",         // no role token
+		"Qwen3.6-VL-dev.gguf",            // no role token
 		"Qwen3.6-VL-dev-mmproj-vae.gguf", // two role tokens: ambiguous
 	} {
 		if base, role := Component(s); base != "" || role != "" {

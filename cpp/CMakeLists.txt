@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(abstraction_model_api VERSION 0.1.0 LANGUAGES CXX)
+project(abstraction_model_api VERSION 0.8.0 LANGUAGES CXX)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 if(NOT TARGET abstraction::download_request)
@@ -36,7 +36,7 @@ install(DIRECTORY abstraction/model/api DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/
 set(config_dir ${CMAKE_INSTALL_LIBDIR}/cmake/abstraction_model_api)
 install(EXPORT abstraction_model_apiTargets NAMESPACE abstraction:: DESTINATION ${config_dir})
 configure_package_config_file(cmake/abstraction_model_apiConfig.cmake.in ${CMAKE_CURRENT_BINARY_DIR}/abstraction_model_apiConfig.cmake INSTALL_DESTINATION ${config_dir})
-write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/abstraction_model_apiConfigVersion.cmake VERSION 0.1.0 COMPATIBILITY SameMinorVersion)
+write_basic_package_version_file(${CMAKE_CURRENT_BINARY_DIR}/abstraction_model_apiConfigVersion.cmake VERSION 0.8.0 COMPATIBILITY SameMinorVersion)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/abstraction_model_apiConfig.cmake ${CMAKE_CURRENT_BINARY_DIR}/abstraction_model_apiConfigVersion.cmake DESTINATION ${config_dir})
 
 option(ABSTRACTION_MODEL_BUILD_CLIENT "Build shared IPC model client" ON)

@@ -42,46 +42,14 @@ function strs(out, v, depth) {
 
 const isWs = (c) => c === 0x20 || c === 0x09 || c === 0x0a || c === 0x0d;
 
+// raw writes an opaque value's bytes as they are ([DEF-A3]).
 function raw(out, s, depth) {
   const b = typeof s === "string" ? ENC.encode(s) : s;
-  let i = 0;
-  while (i < b.length) {
-    const c = b[i];
-    if (isWs(c)) { i++; continue; }
-    if (c === 0x22) {
-      let j = i + 1;
-      while (j < b.length) {
-        if (b[j] === 0x5c) { j += 2; continue; }
-        if (b[j] === 0x22) { j++; break; }
-        j++;
-      }
-      for (let k = i; k < j; k++) out.byte(b[k]);
-      i = j;
-    } else if (c === 0x7b || c === 0x5b) {
-      out.byte(c);
-      i++;
-      let j = i;
-      while (j < b.length && isWs(b[j])) j++;
-      if (j < b.length && (b[j] === 0x7d || b[j] === 0x5d)) { out.byte(b[j]); i = j + 1; }
-      else { depth++; out.byte(0x0a); pad(out, depth); }
-    } else if (c === 0x7d || c === 0x5d) {
-      depth--;
-      out.byte(0x0a);
-      pad(out, depth);
-      out.byte(c);
-      i++;
-    } else if (c === 0x2c) {
-      out.ascii(",\n");
-      pad(out, depth);
-      i++;
-    } else if (c === 0x3a) {
-      out.ascii(": ");
-      i++;
-    } else {
-      out.byte(c);
-      i++;
-    }
-  }
+  // Whitespace around the value is not part of it.
+  let i = 0, j = b.length;
+  while (i < j && isWs(b[i])) i++;
+  while (j > i && isWs(b[j - 1])) j--;
+  for (let k = i; k < j; k++) out.byte(b[k]);
 }
 
 // A JavaScript string sorts by UTF-16 code unit, which puts U+1D11E before
@@ -116,6 +84,19 @@ function esc(out, s) {
   out.byte(0x22);
 }
 
+function writeList(out, v, depth, enc) {
+  if (v.length === 0) { out.ascii("[]"); return; }
+  out.ascii("[\n");
+  for (let i = 0; i < v.length; i++) {
+    pad(out, depth + 1);
+    enc(out, v[i], depth + 1);
+    if (i + 1 < v.length) out.byte(0x2c);
+    out.byte(0x0a);
+  }
+  pad(out, depth);
+  out.byte(0x5d);
+}
+
 export const LookupOutcome = Object.freeze({
   Resolved: "resolved",
   Invalid: "invalid",
@@ -130,6 +111,33 @@ export const ManifestOutcome = Object.freeze({
   Invalid: "invalid",
   Unavailable: "unavailable",
   UnsupportedMapping: "unsupported_mapping",
+  Forbidden: "forbidden",
+});
+
+export const CatalogUse = Object.freeze({
+  Chat: "chat",
+  Code: "code",
+  Vision: "vision",
+  Embed: "embed",
+  Image: "image",
+  Video: "video",
+});
+
+export const Fit = Object.freeze({
+  Fits: "fits",
+  Slow: "slow",
+  No: "no",
+});
+
+export const Availability = Object.freeze({
+  Download: "download",
+  Served: "served",
+});
+
+export const FitOutcome = Object.freeze({
+  Fitted: "fitted",
+  Invalid: "invalid",
+  Unavailable: "unavailable",
   Forbidden: "forbidden",
 });
 
@@ -240,6 +248,120 @@ function writeManifestResult(out, v, depth) {
   out.byte(0x7d);
 }
 
+function writeFitEntry(out, v, depth) {
+  { const n = ENC.encode(v.title).length; if (n < 1 || n > 64) throw new Refusal("bad_value",0); }
+  { const n = ENC.encode(v.family).length; if (n < 1 || n > 128) throw new Refusal("bad_value",0); }
+  { const n = ENC.encode(v.machine).length; if (n > 128) throw new Refusal("bad_value",0); }
+  { const n = ENC.encode(v.license).length; if (n > 128) throw new Refusal("bad_value",0); }
+  { const n = ENC.encode(v.digest).length; if (n > 71) throw new Refusal("bad_value",0); }
+    if (typeof v.fit !== "string") throw new Refusal("wrong_type",0);
+    if (typeof v.availability !== "string") throw new Refusal("wrong_type",0);
+    if (v.availability !== "download" && v.availability !== "served") { throw new Refusal("bad_enum",0); }
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "title");
+  out.ascii(": ");
+  esc(out, v.title);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "family");
+  out.ascii(": ");
+  esc(out, v.family);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "fit");
+  out.ascii(": ");
+  esc(out, v.fit);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "availability");
+  out.ascii(": ");
+  esc(out, v.availability);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "machine");
+  out.ascii(": ");
+  esc(out, v.machine);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "download_bytes");
+  out.ascii(": ");
+  num(out, v.downloadBytes);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "need_bytes");
+  out.ascii(": ");
+  num(out, v.needBytes);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "context");
+  out.ascii(": ");
+  num(out, v.context);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "license");
+  out.ascii(": ");
+  esc(out, v.license);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "source");
+  out.ascii(": ");
+  writeRef(out, v.source, depth + 1);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "digest");
+  out.ascii(": ");
+  esc(out, v.digest);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeFitResult(out, v, depth) {
+  { const n = ENC.encode(v.catalogVersion).length; if (n > 32) throw new Refusal("bad_value",0); }
+  { const n = v.entries.length; if (n > 64) throw new Refusal("bad_value",0); }
+    if (typeof v.outcome !== "string") throw new Refusal("wrong_type",0);
+    if (v.outcome !== "fitted" && v.outcome !== "invalid" && v.outcome !== "unavailable" && v.outcome !== "forbidden") { throw new Refusal("bad_enum",0); }
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "outcome");
+  out.ascii(": ");
+  esc(out, v.outcome);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "catalog_version");
+  out.ascii(": ");
+  esc(out, v.catalogVersion);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "pool_bytes");
+  out.ascii(": ");
+  num(out, v.poolBytes);
+  out.byte(0x2c);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "entries");
+  out.ascii(": ");
+  writeList(out, v.entries, depth + 1, writeFitEntry);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
 function writeOAModelResolverResolveArguments(out, v, depth) {
   out.byte(0x7b);
   out.byte(0x0a);
@@ -259,6 +381,20 @@ function writeOAModelManifestResolveArguments(out, v, depth) {
   esc(out, "ref");
   out.ascii(": ");
   writeRef(out, v.ref, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAModelCatalogFitArguments(out, v, depth) {
+    if (typeof v.use !== "string") throw new Refusal("wrong_type",0);
+    if (v.use !== "chat" && v.use !== "code" && v.use !== "vision" && v.use !== "embed" && v.use !== "image" && v.use !== "video") { throw new Refusal("bad_enum",0); }
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "use");
+  out.ascii(": ");
+  esc(out, v.use);
   out.byte(0x0a);
   pad(out, depth);
   out.byte(0x7d);
@@ -367,6 +503,18 @@ function writeOAModelManifestResolveResult(out, v, depth) {
   esc(out, "value");
   out.ascii(": ");
   writeManifestResult(out, v.value, depth + 1);
+  out.byte(0x0a);
+  pad(out, depth);
+  out.byte(0x7d);
+}
+
+function writeOAModelCatalogFitResult(out, v, depth) {
+  out.byte(0x7b);
+  out.byte(0x0a);
+  pad(out, depth + 1);
+  esc(out, "value");
+  out.ascii(": ");
+  writeFitResult(out, v.value, depth + 1);
   out.byte(0x0a);
   pad(out, depth);
   out.byte(0x7d);
@@ -652,6 +800,27 @@ class Reader {
   }
 }
 
+function readList(r, elem) {
+  if (r.at() !== 0x5b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const out = [];
+  r.ws();
+  if (r.at() !== 0x5d) {
+    for (;;) {
+      r.ws();
+      out.push(elem(r));
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x5d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  return out;
+}
+
 // Native model reference: hf uses repository, revision, optional quant or
 // explicit file; ollama uses repository and tag revision. Empty revision means
 // provider default. Custom registry schemes retain the opaque locator in repo.
@@ -684,12 +853,45 @@ export function newManifestResult() {
   return { outcome: "", manifest: null, resolvedRevision: "" };
 }
 
+// One ranked catalogue entry for the asked use. title is the catalogue's
+// display name. family is the model family a runtime's router names. need_bytes
+// is size plus the KV cache at context plus the recorded startup residual plus
+// 1 GiB (MODEL-K2's fit rule). The residual is a curated upper bound for the
+// pinned engine and catalogue context/profile, excluding weights, the
+// main/draft KV term and the separate 1 GiB margin; a missing private catalogue
+// fact contributes zero and preserves the prior estimate. context is the use's
+// context length in tokens (MODEL-K12). machine is empty for this computer and
+// names the paired runtime that serves the entry otherwise; it is empty for
+// download. download_bytes is 0 when served. license is an SPDX license
+// expression. source and digest (sha256:<hex>) name the one file to fetch
+// (MODEL-K4); a source is never a path.
+export function newFitEntry() {
+  return { title: "", family: "", fit: "", availability: "", machine: "", downloadBytes: 0n, needBytes: 0n, context: 0n, license: "", source: newRef(), digest: "" };
+}
+
+// fitted carries the catalogue version and every entry of the use in rank
+// order, strongest first; the first entry that fits or is served is the pick.
+// pool_bytes is what a new card:0 lease could take now without a yield: the
+// lease book's free amount (RES-L2), net of measured use and the unoccupied
+// part of every live lease. A card carved from memory, or one the instrument
+// cannot read, takes the machine's memory pool. Every other outcome carries an
+// empty version, a zero pool and no entries. invalid is a use the catalogue
+// does not list; unavailable is a pool or offer read that could not answer;
+// forbidden is a receiving boundary or policy refusal.
+export function newFitResult() {
+  return { outcome: "", catalogVersion: "", poolBytes: 0n, entries: [] };
+}
+
 function newOAModelResolverResolveArguments() {
   return { ref: newRef() };
 }
 
 function newOAModelManifestResolveArguments() {
   return { ref: newRef() };
+}
+
+function newOAModelCatalogFitArguments() {
+  return { use: "" };
 }
 
 function newOAServiceFrame() {
@@ -710,6 +912,10 @@ function newOAModelResolverResolveResult() {
 
 function newOAModelManifestResolveResult() {
   return { value: newManifestResult() };
+}
+
+function newOAModelCatalogFitResult() {
+  return { value: newFitResult() };
 }
 
 function readRef(r) {
@@ -851,6 +1057,143 @@ function readManifestResult(r) {
   return v;
 }
 
+function readFitEntry(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newFitEntry();
+  let seen = 0;
+  r.ws();
+  const unknownKeys = new Set();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "title") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.title = r.string();
+      } else if (key === "family") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.family = r.string();
+      } else if (key === "fit") {
+        if (seen & 4) throw r.refuse("duplicate_field");
+        seen |= 4;
+        v.fit = r.string();
+      } else if (key === "availability") {
+        if (seen & 8) throw r.refuse("duplicate_field");
+        seen |= 8;
+        v.availability = r.string();
+      } else if (key === "machine") {
+        if (seen & 16) throw r.refuse("duplicate_field");
+        seen |= 16;
+        v.machine = r.string();
+      } else if (key === "download_bytes") {
+        if (seen & 32) throw r.refuse("duplicate_field");
+        seen |= 32;
+        v.downloadBytes = r.integer(-9223372036854775808n, 9223372036854775807n);
+      } else if (key === "need_bytes") {
+        if (seen & 64) throw r.refuse("duplicate_field");
+        seen |= 64;
+        v.needBytes = r.integer(-9223372036854775808n, 9223372036854775807n);
+      } else if (key === "context") {
+        if (seen & 128) throw r.refuse("duplicate_field");
+        seen |= 128;
+        v.context = r.integer(-9223372036854775808n, 9223372036854775807n);
+      } else if (key === "license") {
+        if (seen & 256) throw r.refuse("duplicate_field");
+        seen |= 256;
+        v.license = r.string();
+      } else if (key === "source") {
+        if (seen & 512) throw r.refuse("duplicate_field");
+        seen |= 512;
+        v.source = readRef(r);
+      } else if (key === "digest") {
+        if (seen & 1024) throw r.refuse("duplicate_field");
+        seen |= 1024;
+        v.digest = r.string();
+      } else {
+        if (unknownKeys.has(key)) throw r.refuse("duplicate_key");
+        unknownKeys.add(key);
+        r.skipValue();
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 2047) >>> 0) !== 2047) throw r.refuse("missing_field");
+  { const n = ENC.encode(v.title).length; if (n < 1 || n > 64) throw r.refuse("bad_value"); }
+  { const n = ENC.encode(v.family).length; if (n < 1 || n > 128) throw r.refuse("bad_value"); }
+  { const n = ENC.encode(v.machine).length; if (n > 128) throw r.refuse("bad_value"); }
+  { const n = ENC.encode(v.license).length; if (n > 128) throw r.refuse("bad_value"); }
+  { const n = ENC.encode(v.digest).length; if (n > 71) throw r.refuse("bad_value"); }
+    if (v.availability !== "download" && v.availability !== "served") { throw r.refuse("bad_enum"); }
+  return v;
+}
+
+function readFitResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newFitResult();
+  let seen = 0;
+  r.ws();
+  const unknownKeys = new Set();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "outcome") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.outcome = r.string();
+      } else if (key === "catalog_version") {
+        if (seen & 2) throw r.refuse("duplicate_field");
+        seen |= 2;
+        v.catalogVersion = r.string();
+      } else if (key === "pool_bytes") {
+        if (seen & 4) throw r.refuse("duplicate_field");
+        seen |= 4;
+        v.poolBytes = r.integer(-9223372036854775808n, 9223372036854775807n);
+      } else if (key === "entries") {
+        if (seen & 8) throw r.refuse("duplicate_field");
+        seen |= 8;
+        v.entries = readList(r, readFitEntry);
+      } else {
+        if (unknownKeys.has(key)) throw r.refuse("duplicate_key");
+        unknownKeys.add(key);
+        r.skipValue();
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 15) >>> 0) !== 15) throw r.refuse("missing_field");
+  { const n = ENC.encode(v.catalogVersion).length; if (n > 32) throw r.refuse("bad_value"); }
+  { const n = v.entries.length; if (n > 64) throw r.refuse("bad_value"); }
+    if (v.outcome !== "fitted" && v.outcome !== "invalid" && v.outcome !== "unavailable" && v.outcome !== "forbidden") { throw r.refuse("bad_enum"); }
+  return v;
+}
+
 function readOAModelResolverResolveArguments(r) {
   if (r.at() !== 0x7b) throw r.refuse("wrong_type");
   r.enter();
@@ -918,6 +1261,42 @@ function readOAModelManifestResolveArguments(r) {
   r.pos++;
   r.depth--;
   if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
+function readOAModelCatalogFitArguments(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAModelCatalogFitArguments();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "use") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.use = r.string();
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+    if (v.use !== "chat" && v.use !== "code" && v.use !== "vision" && v.use !== "embed" && v.use !== "image" && v.use !== "video") { throw r.refuse("bad_enum"); }
   return v;
 }
 
@@ -1128,6 +1507,41 @@ function readOAModelManifestResolveResult(r) {
   return v;
 }
 
+function readOAModelCatalogFitResult(r) {
+  if (r.at() !== 0x7b) throw r.refuse("wrong_type");
+  r.enter();
+  r.pos++;
+  const v = newOAModelCatalogFitResult();
+  let seen = 0;
+  r.ws();
+  if (r.at() !== 0x7d) {
+    for (;;) {
+      r.ws();
+      if (r.at() !== 0x22) throw r.refuse("malformed");
+      const key = r.string();
+      r.ws();
+      if (r.at() !== 0x3a) throw r.refuse("malformed");
+      r.pos++;
+      r.ws();
+      if (key === "value") {
+        if (seen & 1) throw r.refuse("duplicate_field");
+        seen |= 1;
+        v.value = readFitResult(r);
+      } else {
+        throw r.refuse("unknown_field");
+      }
+      r.ws();
+      if (r.at() !== 0x2c) break;
+      r.pos++;
+    }
+  }
+  if (r.at() !== 0x7d) throw r.refuse("malformed");
+  r.pos++;
+  r.depth--;
+  if (((seen & 1) >>> 0) !== 1) throw r.refuse("missing_field");
+  return v;
+}
+
 export function decode(data) {
   const r = new Reader(data);
   r.ws();
@@ -1137,8 +1551,38 @@ export function decode(data) {
   return v;
 }
 
+const JSON_RECORDS = Object.freeze({
+  Ref: [writeRef, readRef],
+  LookupResult: [writeLookupResult, readLookupResult],
+  ManifestResult: [writeManifestResult, readManifestResult],
+  FitEntry: [writeFitEntry, readFitEntry],
+  FitResult: [writeFitResult, readFitResult],
+});
+
+// toJson writes one record, named by kind, as JSON laid out as this module's
+// documents are and without the document terminator.
+export function toJson(kind, value) {
+  const codec = Object.hasOwn(JSON_RECORDS, kind) ? JSON_RECORDS[kind] : undefined;
+  if (codec === undefined) throw new TypeError("toJson takes a record name of this module, not " + String(kind));
+  const out = new Out();
+  codec[0](out, value, 0);
+  return out.bytes();
+}
+
+// fromJson reads one record, named by kind, from data; a refused input throws Refusal.
+export function fromJson(kind, data) {
+  const codec = Object.hasOwn(JSON_RECORDS, kind) ? JSON_RECORDS[kind] : undefined;
+  if (codec === undefined) throw new TypeError("fromJson takes a record name of this module, not " + String(kind));
+  const r = new Reader(data);
+  r.ws();
+  const v = codec[1](r);
+  r.ws();
+  if (r.pos < r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
 // refusals is in the order two of them are chosen between.
-const refusals = ["malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "trailing_bytes"];
+const refusals = ["malformed", "bad_string", "number_spelling", "wrong_type", "depth_exceeded", "duplicate_key", "duplicate_field", "unknown_field", "missing_field", "bad_enum", "bad_value", "trailing_bytes"];
 
 function refusalRank(word) {
   return refusals.indexOf(word);
@@ -1203,13 +1647,17 @@ const _serviceRecords = Object.create(null);
 _serviceRecords["Ref"] = [["registry","string","never"],["repo","string","never"],["revision","string","never"],["quant","string","never"],["file","string","never"],["credential","string","zero"],];
 _serviceRecords["LookupResult"] = [["outcome","string","never"],["request","OAImported0","absent"],];
 _serviceRecords["ManifestResult"] = [["outcome","string","never"],["manifest","OAImported1","absent"],["resolvedRevision","string","never"],];
+_serviceRecords["FitEntry"] = [["title","string","never"],["family","string","never"],["fit","string","never"],["availability","string","never"],["machine","string","never"],["downloadBytes","i64","never"],["needBytes","i64","never"],["context","i64","never"],["license","string","never"],["source","Ref","never"],["digest","string","never"],];
+_serviceRecords["FitResult"] = [["outcome","string","never"],["catalogVersion","string","never"],["poolBytes","i64","never"],["entries","list<FitEntry>","never"],];
 _serviceRecords["OAModelResolverResolveArguments"] = [["ref","Ref","never"],];
 _serviceRecords["OAModelManifestResolveArguments"] = [["ref","Ref","never"],];
+_serviceRecords["OAModelCatalogFitArguments"] = [["use","string","never"],];
 _serviceRecords["OAServiceFrame"] = [["version","i32","never"],["service","string","never"],["method","string","never"],["arguments","json","never"],];
 _serviceRecords["OAServiceReply"] = [["version","i32","never"],["service","string","never"],["method","string","never"],["ok","bool","never"],["payload","json","never"],];
 _serviceRecords["OAServiceError"] = [["code","string","never"],["message","string","never"],];
 _serviceRecords["OAModelResolverResolveResult"] = [["value","LookupResult","never"],];
 _serviceRecords["OAModelManifestResolveResult"] = [["value","ManifestResult","never"],];
+_serviceRecords["OAModelCatalogFitResult"] = [["value","FitResult","never"],];
 
 function _serviceRequest(service, method, argumentsBytes) {
   return _serviceEncode(writeOAServiceFrame, {
@@ -1242,6 +1690,7 @@ export class ModelResolverClient {
     const _request = _serviceRequest("abstraction.model/resolver@1", "Resolve", _payload);
     const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.model/resolver@1", "Resolve");
     const _result = _serviceDecode(readOAModelResolverResolveResult, _reply, 1);
+    if ((_result.value.outcome === "resolved") !== (_result.value.request !== undefined && _result.value.request !== null)) throw new ServiceError("invalid_result", "");
     return _result.value;
   }
 }
@@ -1259,10 +1708,28 @@ export class ModelManifestClient {
     const _request = _serviceRequest("abstraction.model/manifest@1", "Resolve", _payload);
     const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.model/manifest@1", "Resolve");
     const _result = _serviceDecode(readOAModelManifestResolveResult, _reply, 1);
+    if ((_result.value.outcome === "resolved") !== (_result.value.manifest !== undefined && _result.value.manifest !== null)) throw new ServiceError("invalid_result", "");
     return _result.value;
   }
 }
 export const ModelManifestService = Object.freeze({wireName:"abstraction.model/manifest@1",Client:ModelManifestClient});
+
+export class ModelCatalogClient {
+  constructor(transport) { this._transport = transport; }
+
+  async fit(use) {
+    const _args = newOAModelCatalogFitArguments();
+    _args.use = use;
+    _serviceCheck("OAModelCatalogFitArguments", _args);
+    const _payload = _serviceEncode(writeOAModelCatalogFitArguments, _args, 1);
+    _serviceDecode(readOAModelCatalogFitArguments, _payload, 1);
+    const _request = _serviceRequest("abstraction.model/catalog@1", "Fit", _payload);
+    const _reply = _serviceResponse(await this._transport.exchangeFrame(_request), "abstraction.model/catalog@1", "Fit");
+    const _result = _serviceDecode(readOAModelCatalogFitResult, _reply, 1);
+    return _result.value;
+  }
+}
+export const ModelCatalogService = Object.freeze({wireName:"abstraction.model/catalog@1",Client:ModelCatalogClient});
 
 function newOAImported0() { return dependencyRequest.newRequest(); }
 
@@ -1338,6 +1805,8 @@ const _namedRecords = Object.create(null);
 _namedRecords["Ref"] = [["registry","string","never"],["repo","string","never"],["revision","string","never"],["quant","string","never"],["file","string","never"],["credential","string","zero"],];
 _namedRecords["LookupResult"] = [["outcome","string","never"],["request","OAImported0","absent"],];
 _namedRecords["ManifestResult"] = [["outcome","string","never"],["manifest","OAImported1","absent"],["resolvedRevision","string","never"],];
+_namedRecords["FitEntry"] = [["title","string","never"],["family","string","never"],["fit","string","never"],["availability","string","never"],["machine","string","never"],["downloadBytes","i64","never"],["needBytes","i64","never"],["context","i64","never"],["license","string","never"],["source","Ref","never"],["digest","string","never"],];
+_namedRecords["FitResult"] = [["outcome","string","never"],["catalogVersion","string","never"],["poolBytes","i64","never"],["entries","list<FitEntry>","never"],];
 function _namedCheck(kind, value, depth = 0, limit = DEPTH_LIMIT) {
   if (depth > limit) throw new Refusal("depth_exceeded", 0);
   let valid = false;
@@ -1387,6 +1856,14 @@ export function checkLookupResult(v, depth = 0, limit = DEPTH_LIMIT) {
 
 export function checkManifestResult(v, depth = 0, limit = DEPTH_LIMIT) {
   _namedCheck("ManifestResult", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkFitEntry(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("FitEntry", v, depth, Math.min(limit, DEPTH_LIMIT));
+}
+
+export function checkFitResult(v, depth = 0, limit = DEPTH_LIMIT) {
+  _namedCheck("FitResult", v, depth, Math.min(limit, DEPTH_LIMIT));
 }
 
 export function decodeRefAt(data, depth, limit) {
@@ -1493,6 +1970,80 @@ export function encodeManifestResult(v) {
 
 export function decodeManifestResult(data) {
   const [v, n] = decodeManifestResultAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeFitEntryAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readFitEntry(r);
+  return [v, r.pos];
+}
+
+export function encodeFitEntryAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkFitEntry(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeFitEntry(out, v, depth);
+  const bytes = out.bytes();
+  decodeFitEntryAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeFitEntry(v) {
+  const bytes = encodeFitEntryAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeFitEntry(data) {
+  const [v, n] = decodeFitEntryAt(data, 0, DEPTH_LIMIT);
+  const r = new Reader(data);
+  r.pos = n;
+  r.ws();
+  if (r.pos !== r.buf.length) throw r.refuse("trailing_bytes");
+  return v;
+}
+
+export function decodeFitResultAt(data, depth, limit) {
+  const r = new Reader(data);
+  if (depth < 0 || limit < 1) throw r.refuse("depth_exceeded");
+  r.depth = depth;
+  r.limit = Math.min(limit, DEPTH_LIMIT);
+  r.ws();
+  const v = readFitResult(r);
+  return [v, r.pos];
+}
+
+export function encodeFitResultAt(v, depth) {
+  if (depth < 0 || depth >= DEPTH_LIMIT) throw new Refusal("depth_exceeded", 0);
+  checkFitResult(v, depth, DEPTH_LIMIT);
+  const out = new Out();
+  writeFitResult(out, v, depth);
+  const bytes = out.bytes();
+  decodeFitResultAt(bytes, depth, DEPTH_LIMIT);
+  return bytes;
+}
+
+export function encodeFitResult(v) {
+  const bytes = encodeFitResultAt(v, 0);
+  const out = new Uint8Array(bytes.length + 1);
+  out.set(bytes);
+  out[bytes.length] = 0x0a;
+  return out;
+}
+
+export function decodeFitResult(data) {
+  const [v, n] = decodeFitResultAt(data, 0, DEPTH_LIMIT);
   const r = new Reader(data);
   r.pos = n;
   r.ws();

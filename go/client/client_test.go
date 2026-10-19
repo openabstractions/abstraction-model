@@ -6,9 +6,9 @@ import (
 	request "github.com/openabstractions/abstraction-download/go/abstraction/download/request"
 	"github.com/openabstractions/abstraction-identity/listen"
 	wire "github.com/openabstractions/abstraction-model/go/abstraction/model/api"
+	"github.com/openabstractions/abstraction-model/go/internal/personfolders"
 	"os"
 	"runtime"
-	"strings"
 	"testing"
 	"time"
 )
@@ -20,8 +20,7 @@ func TestClientRejectsForgedMappingOverIPC(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		t.Skip("Program process/path evidence unavailable")
 	}
-	valid := request.Request{Artifact: request.Artifact{Digest: "sha256:" + strings.Repeat("a", 64)}, Sources: []request.Source{{Scheme: "https", Locator: "https://example.invalid/weights"}}}
-	for i, result := range []wire.LookupResult{{Outcome: wire.LookupOutcomeResolved}, {Outcome: wire.LookupOutcomeResolved, Request: &request.Request{}}, {Outcome: wire.LookupOutcomeUnavailable, Request: &valid}} {
+	for i, result := range []wire.LookupResult{{Outcome: wire.LookupOutcomeResolved, Request: &request.Request{}}} {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			endpoint := listen.Endpoint(fmt.Sprintf("model-forged-%d-%d", os.Getpid(), i))
 			l, e := listen.Listen(endpoint)
@@ -62,3 +61,6 @@ func TestClientRejectsForgedMappingOverIPC(t *testing.T) {
 		})
 	}
 }
+
+// TestMain confines per-user folders to the canonical owned test fixture.
+func TestMain(m *testing.M) { os.Exit(personfolders.Main(m)) }

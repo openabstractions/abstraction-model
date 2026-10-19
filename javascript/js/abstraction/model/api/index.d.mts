@@ -10,9 +10,72 @@ interface FrameTransport {
   writeFrame(frame: Uint8Array): Promise<void>;
 }
 
+export type Availability = (typeof Availability)[keyof typeof Availability];
+export declare const Availability: Readonly<{ Download: "download"; Served: "served" }>;
+
+export type CatalogUse = (typeof CatalogUse)[keyof typeof CatalogUse];
+export declare const CatalogUse: Readonly<{ Chat: "chat"; Code: "code"; Vision: "vision"; Embed: "embed"; Image: "image"; Video: "video" }>;
+
 export declare class DispatchError extends Error {
   constructor(code: string);
   code: string;
+}
+
+export type Fit = (typeof Fit)[keyof typeof Fit];
+export declare const Fit: Readonly<{ Fits: "fits"; Slow: "slow"; No: "no" }>;
+
+// One ranked catalogue entry for the asked use. title is the catalogue's
+// display name. family is the model family a runtime's router names. need_bytes
+// is size plus the KV cache at context plus the recorded startup residual plus
+// 1 GiB (MODEL-K2's fit rule). The residual is a curated upper bound for the
+// pinned engine and catalogue context/profile, excluding weights, the
+// main/draft KV term and the separate 1 GiB margin; a missing private catalogue
+// fact contributes zero and preserves the prior estimate. context is the use's
+// context length in tokens (MODEL-K12). machine is empty for this computer and
+// names the paired runtime that serves the entry otherwise; it is empty for
+// download. download_bytes is 0 when served. license is an SPDX license
+// expression. source and digest (sha256:<hex>) name the one file to fetch
+// (MODEL-K4); a source is never a path.
+export interface FitEntry {
+  title: string;
+  family: string;
+  fit: Fit | (string & {});
+  availability: Availability;
+  machine: string;
+  downloadBytes: bigint;
+  needBytes: bigint;
+  context: bigint;
+  license: string;
+  source: Ref;
+  digest: string;
+}
+
+export type FitOutcome = (typeof FitOutcome)[keyof typeof FitOutcome];
+export declare const FitOutcome: Readonly<{ Fitted: "fitted"; Invalid: "invalid"; Unavailable: "unavailable"; Forbidden: "forbidden" }>;
+
+// fitted carries the catalogue version and every entry of the use in rank
+// order, strongest first; the first entry that fits or is served is the pick.
+// pool_bytes is what a new card:0 lease could take now without a yield: the
+// lease book's free amount (RES-L2), net of measured use and the unoccupied
+// part of every live lease. A card carved from memory, or one the instrument
+// cannot read, takes the machine's memory pool. Every other outcome carries an
+// empty version, a zero pool and no entries. invalid is a use the catalogue
+// does not list; unavailable is a pool or offer read that could not answer;
+// forbidden is a receiving boundary or policy refusal.
+export interface FitResult {
+  outcome: FitOutcome;
+  catalogVersion: string;
+  poolBytes: bigint;
+  entries: FitEntry[];
+}
+
+// JsonRecords maps each record name toJson and fromJson take to its type.
+export interface JsonRecords {
+  Ref: Ref;
+  LookupResult: LookupResult;
+  ManifestResult: ManifestResult;
+  FitEntry: FitEntry;
+  FitResult: FitResult;
 }
 
 export type LookupOutcome = (typeof LookupOutcome)[keyof typeof LookupOutcome];
@@ -43,16 +106,25 @@ export interface ManifestResult {
   resolvedRevision: string;
 }
 
+/** The release-curated model catalogue, compiled into the runtime, and its fit rule. Same-account, and gated like router@1 Offer by abstraction.router/inventory.read on abstraction.router/inventory, since a served entry discloses what runtimes offer. Choosing an entry, downloading it and selecting it are separate public operations. */
+export declare class ModelCatalogClient {
+  constructor(transport: FrameTransport);
+  /** Rank the catalogue's entries for use against this machine and the families runtimes already serve. Reads abstraction.resource/table@1 and abstraction.router/router@1 Offer, which include paired runtimes. Reads no weight file, sends no request to a registry, submits no job and changes nothing. */
+  fit(use: CatalogUse): Promise<FitResult>;
+}
+
+export declare const ModelCatalogService: Readonly<{ wireName: "abstraction.model/catalog@1"; Client: typeof ModelCatalogClient }>;
+
 /** Same-account identity-bound registry resolution to a storage manifest. The model service owns no bytes and walks no directories; stores and holders belong to the storage inventory. */
 export declare class ModelManifestClient {
   constructor(transport: FrameTransport);
-  /** A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a component (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source's own classifier answers (projector, vae) for a part of one. A component's base then names the family it belongs to when its own name derives one, in place of base's other meaning of the model a weights file was fine-tuned from. */
+  /** A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a [component](https://openabstractions.github.io/reference.html#concept-model-identity.component) (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source's own classifier answers (projector, vae) for a part of one. A component's base then names the [family](https://openabstractions.github.io/reference.html#concept-model.family-identity) it belongs to when its own name derives one, in place of base's other meaning of the model a weights file was fine-tuned from. */
   resolve(ref: Ref): Promise<ManifestResult>;
 }
 
 export declare const ModelManifestService: Readonly<{ wireName: "abstraction.model/manifest@1"; Client: typeof ModelManifestClient }>;
 
-/** Same-account identity-bound model lookup through explicitly configured registry providers. A resolved request contains a nonempty verified-format digest and a complete HTTP(S) mapping, anonymous or naming the Ref's credential. Providers refuse mappings needing capabilities absent from the portable download request. Local adapters and registry configuration remain explicit provider-side APIs. */
+/** Same-account identity-bound model lookup through explicitly configured registry providers. A resolved request contains a nonempty verified-format digest and a complete HTTP(S) mapping, anonymous or naming the [Ref](https://openabstractions.github.io/reference.html#concept-model.ref)'s credential. Providers refuse mappings needing capabilities absent from the portable download request. Local adapters and registry configuration remain explicit provider-side APIs. */
 export declare class ModelResolverClient {
   constructor(transport: FrameTransport);
   resolve(ref: Ref): Promise<LookupResult>;
@@ -80,7 +152,7 @@ export interface Ref {
 
 export declare class Refusal extends Error {
   constructor(word: string, offset: number);
-  word: "malformed" | "bad_string" | "number_spelling" | "wrong_type" | "depth_exceeded" | "duplicate_key" | "duplicate_field" | "unknown_field" | "missing_field" | "bad_enum" | "trailing_bytes";
+  word: "malformed" | "bad_string" | "number_spelling" | "wrong_type" | "depth_exceeded" | "duplicate_key" | "duplicate_field" | "unknown_field" | "missing_field" | "bad_enum" | "bad_value" | "trailing_bytes";
   offset: number;
 }
 
@@ -94,6 +166,10 @@ export declare const ServiceErrorCode: Readonly<{ HandlerError: "handler_error";
 
 export declare function decode(data: Uint8Array): Ref;
 
+export declare function decodeFitEntry(data: Uint8Array): FitEntry;
+
+export declare function decodeFitResult(data: Uint8Array): FitResult;
+
 export declare function decodeLookupResult(data: Uint8Array): LookupResult;
 
 export declare function decodeManifestResult(data: Uint8Array): ManifestResult;
@@ -102,11 +178,21 @@ export declare function decodeRef(data: Uint8Array): Ref;
 
 export declare function encode(v: Ref): Uint8Array;
 
+export declare function encodeFitEntry(v: FitEntry): Uint8Array;
+
+export declare function encodeFitResult(v: FitResult): Uint8Array;
+
 export declare function encodeLookupResult(v: LookupResult): Uint8Array;
 
 export declare function encodeManifestResult(v: ManifestResult): Uint8Array;
 
 export declare function encodeRef(v: Ref): Uint8Array;
+
+export declare const fromJson: <K extends keyof JsonRecords>(kind: K, data: Uint8Array) => JsonRecords[K];
+
+export declare function newFitEntry(): FitEntry;
+
+export declare function newFitResult(): FitResult;
 
 export declare function newLookupResult(): LookupResult;
 
@@ -117,5 +203,7 @@ export declare function newRef(): Ref;
 export declare const registryOperations: readonly ["Add", "SetLocal", "Resolve"];
 
 export declare const resolverOperations: readonly ["Registry", "Resolve"];
+
+export declare const toJson: <K extends keyof JsonRecords>(kind: K, value: JsonRecords[K]) => Uint8Array;
 
 export {};

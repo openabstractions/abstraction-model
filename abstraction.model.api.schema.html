@@ -2,37 +2,49 @@
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Open Abstractions — schema</title>
+<title>OpenAbstractions — schema</title>
 <link rel="stylesheet" href="style.css">
 
 <main>
-<nav class="site" aria-label="Primary navigation"><a class="name" href="index.html">Open Abstractions</a>
+<nav class="site" aria-label="Primary navigation"><a class="name" href="index.html">OpenAbstractions</a>
 <a href="adopt.html">Adopt</a><a href="cases.html">Cases</a><span class="nav-devs-label">for developers</span><a href="reference.html">Reference</a><a href="coverage.html">Coverage</a><a href="catalogue.html">Catalogue</a><a href="https://github.com/openabstractions">GitHub</a></nav>
 
 
 <h1>Schema</h1>
 <p class="lead">Use this reference to inspect fields, methods, accepted values and failure outcomes. For setup and working examples, start with the <a href="reference.html">API guide</a>.</p>
 <p>Definition: <code>abstraction.model.api</code></p>
-<nav aria-label="Schema sections" class="meta"><a href="#service-ModelResolver">ModelResolver</a> · <a href="#service-ModelManifest">ModelManifest</a> · <a href="#types">Types</a> · <a href="#structs">Fields</a> · <a href="#enums">Enumerations</a> · <a href="#constants">Constants</a> · <a href="#encoding">Encoding</a> · <a href="#refusals">Refusals</a></nav>
+<nav aria-label="Schema sections" class="meta"><a href="#service-ModelResolver">ModelResolver</a> · <a href="#service-ModelManifest">ModelManifest</a> · <a href="#service-ModelCatalog">ModelCatalog</a> · <a href="#types">Types</a> · <a href="#structs">Fields</a> · <a href="#enums">Enumerations</a> · <a href="#constants">Constants</a> · <a href="#encoding">Encoding</a> · <a href="#refusals">Refusals</a></nav>
 <h2 id="service-ModelResolver">Service <code>ModelResolver</code> <span class="tag">[DEF-S1]</span></h2>
-<p>Same-account identity-bound model lookup through explicitly configured registry providers. A resolved request contains a nonempty verified-format digest and a complete HTTP(S) mapping, anonymous or naming the Ref&#39;s credential. Providers refuse mappings needing capabilities absent from the portable download request. Local adapters and registry configuration remain explicit provider-side APIs.</p>
+<p>Same-account identity-bound model lookup through explicitly configured registry providers. A resolved request contains a nonempty verified-format digest and a complete HTTP(S) mapping, anonymous or naming the <a href="https://openabstractions.github.io/reference.html#concept-model.ref">Ref</a>&#39;s credential. Providers refuse mappings needing capabilities absent from the portable download request. Local adapters and registry configuration remain explicit provider-side APIs.</p>
 <p>Wire identity: <code>abstraction.model/resolver@1</code></p>
-<p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. The selected generated dispatcher validates the method and typed arguments; the selector does not authorize callers or interpret method payloads.</p>
+<p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. Go ServiceMethod returns the service and method routing pair through the same strict decoder, exposing no arguments. The selected generated dispatcher validates the method and typed arguments; these selectors do not authorize callers or establish a handler outcome.</p>
 <p>Frames carry version, service, method and typed arguments. Transport owns framing, associated exchanges, deadlines and connections. Unknown version/service/method and malformed arguments are rejected before invoking a handler. One-way WriteFrame success means local submission, not remote acceptance or persistence.</p>
 <p>Request-response methods use ExchangeFrame. Replies carry version, service, method, ok and payload; success payload contains typed value (or an empty object for void). Error payload contains nonempty code and message, which may be empty. ServiceError preserves unknown codes. Unexpected handler failures become handler_error without private details; invalid results become invalid_result. Clients validate reply identity and result before exposing it. A malformed frame or transport failure remains a local error; the transport must associate each response with its exchange. C++ dispatchers are pure protocol bindings, not listening servers.</p>
 <p></p>
-<h3><code>Resolve</code></h3><p><code>request-response</code> <code>LookupResult</code></p><ul>
+<h3><code>Resolve</code></h3><p><code>request-response</code> <code>LookupResult</code> · readonly <span class="tag">[DEF-S3]</span></p><ul>
 <li>Argument 1: <code>Ref</code> <code>ref</code> (required, including zero/false/empty)</li>
 </ul>
+<p>Service result postcondition: <code>request</code> is present exactly when <code>outcome</code> is <code>resolved</code>. Clients validate before return; dispatchers validate before reply. Standalone record codecs remain structural.</p>
 <h2 id="service-ModelManifest">Service <code>ModelManifest</code> <span class="tag">[DEF-S1]</span></h2>
 <p>Same-account identity-bound registry resolution to a storage manifest. The model service owns no bytes and walks no directories; stores and holders belong to the storage inventory.</p>
 <p>Wire identity: <code>abstraction.model/manifest@1</code></p>
-<p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. The selected generated dispatcher validates the method and typed arguments; the selector does not authorize callers or interpret method payloads.</p>
+<p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. Go ServiceMethod returns the service and method routing pair through the same strict decoder, exposing no arguments. The selected generated dispatcher validates the method and typed arguments; these selectors do not authorize callers or establish a handler outcome.</p>
 <p>Frames carry version, service, method and typed arguments. Transport owns framing, associated exchanges, deadlines and connections. Unknown version/service/method and malformed arguments are rejected before invoking a handler. One-way WriteFrame success means local submission, not remote acceptance or persistence.</p>
 <p>Request-response methods use ExchangeFrame. Replies carry version, service, method, ok and payload; success payload contains typed value (or an empty object for void). Error payload contains nonempty code and message, which may be empty. ServiceError preserves unknown codes. Unexpected handler failures become handler_error without private details; invalid results become invalid_result. Clients validate reply identity and result before exposing it. A malformed frame or transport failure remains a local error; the transport must associate each response with its exchange. C++ dispatchers are pure protocol bindings, not listening servers.</p>
-<p>A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a component (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source&#39;s own classifier answers (projector, vae) for a part of one. A component&#39;s base then names the family it belongs to when its own name derives one, in place of base&#39;s other meaning of the model a weights file was fine-tuned from.</p>
-<h3><code>Resolve</code></h3><p><code>request-response</code> <code>ManifestResult</code></p><ul>
+<p>A registry reference resolves to one manifest of kind abstraction.model/descriptor@1 with entries by role and a descriptor with family, quant, format, architecture, size_label, finetune, base, source and role. Portable download requests per entry come from resolver@1. No bytes move. role marks a <a href="https://openabstractions.github.io/reference.html#concept-model-identity.component">component</a> (MODEL-C3): weights for the servable artifact, or the closed vocabulary a storage inventory source&#39;s own classifier answers (projector, vae) for a part of one. A component&#39;s base then names the <a href="https://openabstractions.github.io/reference.html#concept-model.family-identity">family</a> it belongs to when its own name derives one, in place of base&#39;s other meaning of the model a weights file was fine-tuned from.</p>
+<h3><code>Resolve</code></h3><p><code>request-response</code> <code>ManifestResult</code> · readonly <span class="tag">[DEF-S3]</span></p><ul>
 <li>Argument 1: <code>Ref</code> <code>ref</code> (required, including zero/false/empty)</li>
+</ul>
+<p>Service result postcondition: <code>manifest</code> is present exactly when <code>outcome</code> is <code>resolved</code>. Clients validate before return; dispatchers validate before reply. Standalone record codecs remain structural.</p>
+<h2 id="service-ModelCatalog">Service <code>ModelCatalog</code> <span class="tag">[DEF-S1]</span></h2>
+<p>The release-curated model catalogue, compiled into the runtime, and its fit rule. Same-account, and gated like router@1 Offer by abstraction.router/inventory.read on abstraction.router/inventory, since a served entry discloses what runtimes offer. Choosing an entry, downloading it and selecting it are separate public operations.</p>
+<p>Wire identity: <code>abstraction.model/catalog@1</code></p>
+<p>Multiple services share this namespace. Generated ServiceName (Go) and service_name (C++/Python) validate the request envelope and version before returning its service identity for routing. Go ServiceMethod returns the service and method routing pair through the same strict decoder, exposing no arguments. The selected generated dispatcher validates the method and typed arguments; these selectors do not authorize callers or establish a handler outcome.</p>
+<p>Frames carry version, service, method and typed arguments. Transport owns framing, associated exchanges, deadlines and connections. Unknown version/service/method and malformed arguments are rejected before invoking a handler. One-way WriteFrame success means local submission, not remote acceptance or persistence.</p>
+<p>Request-response methods use ExchangeFrame. Replies carry version, service, method, ok and payload; success payload contains typed value (or an empty object for void). Error payload contains nonempty code and message, which may be empty. ServiceError preserves unknown codes. Unexpected handler failures become handler_error without private details; invalid results become invalid_result. Clients validate reply identity and result before exposing it. A malformed frame or transport failure remains a local error; the transport must associate each response with its exchange. C++ dispatchers are pure protocol bindings, not listening servers.</p>
+<p>Rank the catalogue&#39;s entries for use against this machine and the families runtimes already serve. Reads abstraction.resource/table@1 and abstraction.router/router@1 Offer, which include paired runtimes. Reads no weight file, sends no request to a registry, submits no job and changes nothing.</p>
+<h3><code>Fit</code></h3><p><code>request-response</code> <code>FitResult</code> · readonly <span class="tag">[DEF-S3]</span></p><ul>
+<li>Argument 1: <code>CatalogUse</code> <code>use</code> (required, including zero/false/empty)</li>
 </ul>
 <h2 id="encoding">Encoding <span class="tag">[DEF-E1]</span></h2>
 <div class="wrap"><table>
@@ -51,8 +63,9 @@
 <div class="wrap"><table>
 <thead><tr><th>kind</th><th>types</th></tr></thead>
 <tbody>
-<tr><td>built in</td><td><code>LookupOutcome</code> <code>ManifestOutcome</code> <code>string</code></td></tr>
-<tr><td>declared below</td><td><code>content.Manifest</code> <code>request.Request</code></td></tr>
+<tr><td>built in</td><td><code>Availability</code> <code>Fit</code> <code>FitOutcome</code> <code>LookupOutcome</code> <code>ManifestOutcome</code> <code>i64</code> <code>string</code></td></tr>
+<tr><td>declared below</td><td><code>Ref</code> <code>content.Manifest</code> <code>request.Request</code></td></tr>
+<tr><td>repeated record <span class="tag">[DEF-A9]</span></td><td><code>list&lt;FitEntry&gt;</code></td></tr>
 </tbody></table></div>
 <h2 id="structs">Structs <span class="tag">[DEF-T1]</span></h2>
 <p class="meta">A field is required, or says when it is omitted <span class="tag">[DEF-A4]</span>. Each struct says on its own what it does with a field name it has never heard of <span class="tag">[DEF-A7]</span>. A wire name never moves; where a language must spell it differently the field says so <span class="tag">[DEF-A2]</span>.</p>
@@ -85,6 +98,33 @@
 <tr><td>2</td><td><code>manifest</code></td><td><code>content.Manifest</code></td><td>optional · omitted when absent</td><td>—</td></tr>
 <tr><td>3</td><td><code>resolved_revision</code></td><td><code>string</code></td><td>required</td><td>—</td></tr>
 </tbody></table></div>
+<h3 id="struct-FitEntry"><code>FitEntry</code></h3>
+<p class="meta">unknown fields <code>grant</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>field</th><th>type</th><th>presence</th><th>named elsewhere</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>title</code></td><td><code>string</code></td><td>required; length 1..64 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+<tr><td>2</td><td><code>family</code></td><td><code>string</code></td><td>required; length 1..128 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+<tr><td>3</td><td><code>fit</code></td><td><code>Fit</code></td><td>required</td><td>—</td></tr>
+<tr><td>4</td><td><code>availability</code></td><td><code>Availability</code></td><td>required</td><td>—</td></tr>
+<tr><td>5</td><td><code>machine</code></td><td><code>string</code></td><td>required; length ..128 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+<tr><td>6</td><td><code>download_bytes</code></td><td><code>i64</code></td><td>required</td><td>—</td></tr>
+<tr><td>7</td><td><code>need_bytes</code></td><td><code>i64</code></td><td>required</td><td>—</td></tr>
+<tr><td>8</td><td><code>context</code></td><td><code>i64</code></td><td>required</td><td>—</td></tr>
+<tr><td>9</td><td><code>license</code></td><td><code>string</code></td><td>required; length ..128 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+<tr><td>10</td><td><code>source</code></td><td><code>Ref</code></td><td>required</td><td>—</td></tr>
+<tr><td>11</td><td><code>digest</code></td><td><code>string</code></td><td>required; length ..71 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+</tbody></table></div>
+<h3 id="struct-FitResult"><code>FitResult</code></h3>
+<p class="meta">unknown fields <code>grant</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>field</th><th>type</th><th>presence</th><th>named elsewhere</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>outcome</code></td><td><code>FitOutcome</code></td><td>required</td><td>—</td></tr>
+<tr><td>2</td><td><code>catalog_version</code></td><td><code>string</code></td><td>required; length ..32 UTF-8 bytes; refusal <code>bad_value</code></td><td>—</td></tr>
+<tr><td>3</td><td><code>pool_bytes</code></td><td><code>i64</code></td><td>required</td><td>—</td></tr>
+<tr><td>4</td><td><code>entries</code></td><td><code>list&lt;FitEntry&gt;</code></td><td>required; length ..64 entries; refusal <code>bad_value</code></td><td>—</td></tr>
+</tbody></table></div>
 <h2 id="enums">Enumerations <span class="tag">[DEF-T5]</span></h2>
 <p>Enum fields carry JSON strings containing exact member wire spellings, never numeric IDs. Unknown names are preserved with grant and refused as bad_enum with refuse on read and write. Optional absent fields preserve presence separately from an empty string.</p>
 <p class="meta">An enumeration is a closed vocabulary of wire names, and each one says on its own what a reader does with a member it has never heard of <span class="tag">[DEF-A5]</span>.</p>
@@ -111,6 +151,45 @@
 <tr><td>5</td><td><code>unsupported_mapping</code></td><td><code>unsupported_mapping</code></td></tr>
 <tr><td>6</td><td><code>forbidden</code></td><td><code>forbidden</code></td></tr>
 </tbody></table></div>
+<h3 id="enum-CatalogUse"><code>CatalogUse</code></h3>
+<p class="meta">a member this reader does not know is <code>refuse</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>member</th><th>wire</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>chat</code></td><td><code>chat</code></td></tr>
+<tr><td>2</td><td><code>code</code></td><td><code>code</code></td></tr>
+<tr><td>3</td><td><code>vision</code></td><td><code>vision</code></td></tr>
+<tr><td>4</td><td><code>embed</code></td><td><code>embed</code></td></tr>
+<tr><td>5</td><td><code>image</code></td><td><code>image</code></td></tr>
+<tr><td>6</td><td><code>video</code></td><td><code>video</code></td></tr>
+</tbody></table></div>
+<h3 id="enum-Fit"><code>Fit</code></h3>
+<p class="meta">a member this reader does not know is <code>grant</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>member</th><th>wire</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>fits</code></td><td><code>fits</code></td></tr>
+<tr><td>2</td><td><code>slow</code></td><td><code>slow</code></td></tr>
+<tr><td>3</td><td><code>no</code></td><td><code>no</code></td></tr>
+</tbody></table></div>
+<h3 id="enum-Availability"><code>Availability</code></h3>
+<p class="meta">a member this reader does not know is <code>refuse</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>member</th><th>wire</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>download</code></td><td><code>download</code></td></tr>
+<tr><td>2</td><td><code>served</code></td><td><code>served</code></td></tr>
+</tbody></table></div>
+<h3 id="enum-FitOutcome"><code>FitOutcome</code></h3>
+<p class="meta">a member this reader does not know is <code>refuse</code></p>
+<div class="wrap"><table>
+<thead><tr><th>id</th><th>member</th><th>wire</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>fitted</code></td><td><code>fitted</code></td></tr>
+<tr><td>2</td><td><code>invalid</code></td><td><code>invalid</code></td></tr>
+<tr><td>3</td><td><code>unavailable</code></td><td><code>unavailable</code></td></tr>
+<tr><td>4</td><td><code>forbidden</code></td><td><code>forbidden</code></td></tr>
+</tbody></table></div>
 <h2 id="constants">Constants <span class="tag">[DEF-A6]</span></h2>
 <div class="wrap"><table>
 <thead><tr><th>name</th><th>type</th><th>value</th></tr></thead>
@@ -132,7 +211,8 @@
 <tr><td>8</td><td><code>unknown_field</code></td><td><code>structure</code></td></tr>
 <tr><td>9</td><td><code>missing_field</code></td><td><code>structure</code></td></tr>
 <tr><td>10</td><td><code>bad_enum</code></td><td><code>structure</code></td></tr>
-<tr><td>11</td><td><code>trailing_bytes</code></td><td><code>document</code></td></tr>
+<tr><td>11</td><td><code>bad_value</code></td><td><code>structure</code></td></tr>
+<tr><td>12</td><td><code>trailing_bytes</code></td><td><code>document</code></td></tr>
 </tbody></table></div>
 
 <footer>
