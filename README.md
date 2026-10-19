@@ -19,7 +19,7 @@ is recognised as the same model.
 
 Install the runtime first: https://openabstractions.org/adopt.html
 
-    go get github.com/openabstractions/abstraction-model/go
+    go get github.com/openabstractions/abstraction-model/go@v0.8.0 github.com/openabstractions/abstraction-facade/go@v0.8.0
 
 Applications select `abstraction.model/resolver@1` through the facade and
 call the typed resolver. A [model reference](https://openabstractions.github.io/reference.html#concept-model.ref) names the registry
