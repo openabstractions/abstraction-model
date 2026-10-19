@@ -75,8 +75,10 @@ func (o Ollama) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 	if !strings.Contains(name, "/") {
 		name = "library/" + name
 	}
-	if strings.Contains(name, "..") {
-		return download.Spec{}, fmt.Errorf("ollama: suspicious model name %q", ref.Repo)
+	// The name and tag are path parts below the store: each part is a plain
+	// name, never a separator, a drive, a stream or a climb.
+	if !storePathParts(name, true) || !storePathParts(tag, false) {
+		return download.Spec{}, fmt.Errorf("ollama: suspicious model name %q", ref.Repo+":"+ref.Revision)
 	}
 
 	mpath := filepath.Join(root, "manifests", "registry.ollama.ai", filepath.FromSlash(name), tag)
@@ -102,7 +104,9 @@ func (o Ollama) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 		return download.Spec{}, fmt.Errorf("ollama: %s:%s has no model layer", ref.Repo, tag)
 	}
 	digest := strings.ToLower(strings.TrimPrefix(weights.Digest, "sha256:"))
-	if len(digest) != 64 {
+	// The digest names the blob's file below the store, so it is 64 hex
+	// digits and nothing a path could climb with.
+	if len(digest) != 64 || strings.Trim(digest, "0123456789abcdef") != "" {
 		return download.Spec{}, fmt.Errorf("ollama: manifest digest %q is not sha256", weights.Digest)
 	}
 
@@ -119,4 +123,46 @@ func (o Ollama) Resolve(ctx context.Context, ref Ref) (download.Spec, error) {
 			Attrs:   map[string]string{"store": "ollama"},
 		}},
 	}, nil
+}
+
+// storePathParts reports whether s is one name, or with slashes a run of
+// names separated by "/", each of which stays below the store as a path part.
+func storePathParts(s string, slashes bool) bool {
+	if s == "" || len(s) > 512 || strings.ContainsAny(s, "\\:\x00") {
+		return false
+	}
+	parts := []string{s}
+	if slashes {
+		parts = strings.Split(s, "/")
+	} else if strings.Contains(s, "/") {
+		return false
+	}
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." || strings.HasSuffix(part, ".") || strings.HasSuffix(part, " ") || windowsDeviceName(part) {
+			return false
+		}
+		// The store's name grammar: a letter, digit or underscore, then
+		// ASCII letters, digits, "_", "-" and ".". It leaves out the
+		// superscript-digit and spaced device names Win32 also opens.
+		for i := 0; i < len(part); i++ {
+			c := part[i]
+			word := c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || c == '_'
+			if !word && (i == 0 || c != '-' && c != '.') {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// windowsDeviceName reports a name Windows opens as a device whatever its
+// folder: CON, PRN, AUX, NUL, COM0 to COM9 and LPT0 to LPT9, with or without
+// an extension.
+func windowsDeviceName(part string) bool {
+	base, _, _ := strings.Cut(strings.ToUpper(part), ".")
+	switch base {
+	case "CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$":
+		return true
+	}
+	return len(base) == 4 && (strings.HasPrefix(base, "COM") || strings.HasPrefix(base, "LPT")) && base[3] >= '0' && base[3] <= '9'
 }
